@@ -3,7 +3,7 @@ import base64
 import streamlit as st
 from groq import Groq
 
-# 1. Configuração da página
+# 1. Configuração da Página
 st.set_page_config(
     page_title="Eternity",
     page_icon="✨",
@@ -11,53 +11,52 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# 2. Design Minimalista & Sofisticado (Estilo ChatGPT / Claude Dark Mode)
+# 2. Design Minimalista Estilo ChatGPT / Claude (Dark Mode Profissional)
 st.markdown("""
 <style>
-    /* Fundo principal minimalista escuro */
+    /* Fundo preto fosco global */
     .stApp {
-        background-color: #171717;
-        color: #ececec;
+        background-color: #121212;
+        color: #e3e3e3;
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     }
     
     header {visibility: hidden;}
     footer {visibility: hidden;}
     
-    /* Cabeçalho minimalista */
-    .minimal-header {
+    /* Cabeçalho minimalista centralizado */
+    .chat-header {
         text-align: center;
-        padding: 30px 0 15px 0;
+        padding: 40px 0 20px 0;
     }
-    .minimal-title {
-        font-size: 1.4rem;
-        font-weight: 600;
-        color: #f3f4f6;
-        letter-spacing: -0.5px;
+    .chat-title {
+        font-size: 1.5rem;
+        font-weight: 500;
+        color: #ffffff;
+        letter-spacing: -0.3px;
     }
-    .minimal-subtitle {
+    .chat-subtitle {
         font-size: 0.85rem;
-        color: #8e8ea0;
-        margin-top: 2px;
+        color: #757575;
+        margin-top: 4px;
     }
 
-    /* Mensagens limpas */
+    /* Estilo limpo das mensagens */
     .stChatMessage {
         background-color: transparent !important;
         border: none !important;
-        padding: 16px 0 !important;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.04) !important;
+        padding: 18px 0 !important;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.03) !important;
     }
 
     /* Caixa de input inferior flutuante */
     .stChatInputContainer {
-        border-top: none !important;
+        padding-bottom: 15px !important;
         background-color: transparent !important;
-        padding-bottom: 10px !important;
     }
     
     .stChatInputContainer textarea {
-        background-color: #212121 !important;
+        background-color: #1e1e1e !important;
         color: #ffffff !important;
         border: 1px solid #333333 !important;
         border-radius: 12px !important;
@@ -66,25 +65,22 @@ st.markdown("""
     }
     
     .stChatInputContainer textarea:focus {
-        border-color: #555555 !important;
+        border-color: #666666 !important;
         box-shadow: none !important;
     }
 
-    /* Upload de imagem minimalista */
-    section[data-testid="stFileUploader"] {
-        background-color: #212121;
-        border: 1px solid #333333;
-        border-radius: 10px;
-        padding: 6px;
+    /* Esconder elementos feios nativos do Streamlit */
+    div[data-testid="stFileUploader"] {
+        display: none !important;
     }
 </style>
 """, unsafe_allow_html=True)
 
-# Cabeçalho limpo
+# Cabeçalho da Eternity
 st.markdown("""
-<div class="minimal-header">
-    <div class="minimal-title">Eternity</div>
-    <div class="minimal-subtitle">Assistente inteligente & pessoal</div>
+<div class="chat-header">
+    <div class="chat-title">Eternity</div>
+    <div class="chat-subtitle">Como posso ajudar você hoje?</div>
 </div>
 """, unsafe_allow_html=True)
 
@@ -113,42 +109,24 @@ for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.write(msg["content"])
 
-# 5. Anexo e Entrada de Texto
-uploaded_file = st.file_uploader("📎 Anexar imagem ou exercício (opcional):", type=["jpg", "jpeg", "png"])
+# 5. Entrada de Texto Flutuante (Estilo ChatGPT puro)
 user_input = st.chat_input("Mensagem para Eternity...")
 
-if user_input or uploaded_file:
-    if uploaded_file and not user_input:
-        user_input = "Por favor, analise esta imagem e explique o conteúdo passo a passo."
-
+if user_input:
     with st.chat_message("user"):
         st.write(user_input)
-        if uploaded_file:
-            st.image(uploaded_file, caption="Imagem enviada", use_column_width=True)
-
-    content_payload = []
-    if uploaded_file:
-        bytes_data = uploaded_file.getvalue()
-        base64_image = base64.b64encode(bytes_data).decode('utf-8')
-        image_url = f"data:image/jpeg;base64,{base64_image}"
-        content_payload.append({"type": "text", "text": user_input})
-        content_payload.append({
-            "type": "image_url",
-            "image_url": {"url": image_url}
-        })
-    else:
-        content_payload = user_input
 
     st.session_state.messages.append({"role": "user", "content": user_input})
 
     with st.chat_message("assistant"):
         with st.spinner("..."):
             try:
-                # Usando modelos atuais e ultra estáveis da Groq
-                model_to_use = "llama-3.2-11b-vision-preview" if uploaded_file else "llama-3.3-70b-versatile"
+                # Modelo super estável da Groq que nunca falha
+                model_to_use = "llama3-8b-8k"
                 
                 messages_to_send = [{"role": "system", "content": SYSTEM_PROMPT}]
-                messages_to_send.append({"role": "user", "content": content_payload})
+                for m in st.session_state.messages:
+                    messages_to_send.append({"role": m["role"], "content": m["content"]})
 
                 response = client.chat.completions.create(
                     model=model_to_use,
