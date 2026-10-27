@@ -11,10 +11,10 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# 2. Design Minimalista Estilo ChatGPT / Claude (Dark Mode Profissional)
+# 2. Design Minimalista Profissional (Estilo ChatGPT / Claude Dark Mode)
 st.markdown("""
 <style>
-    /* Fundo preto fosco global */
+    /* Fundo preto fosco global estilo ChatGPT */
     .stApp {
         background-color: #121212;
         color: #e3e3e3;
@@ -27,10 +27,10 @@ st.markdown("""
     /* Cabeçalho minimalista centralizado */
     .chat-header {
         text-align: center;
-        padding: 40px 0 20px 0;
+        padding: 35px 0 15px 0;
     }
     .chat-title {
-        font-size: 1.5rem;
+        font-size: 1.4rem;
         font-weight: 500;
         color: #ffffff;
         letter-spacing: -0.3px;
@@ -41,11 +41,11 @@ st.markdown("""
         margin-top: 4px;
     }
 
-    /* Estilo limpo das mensagens */
+    /* Estilo limpo das mensagens (sem caixas pesadas) */
     .stChatMessage {
         background-color: transparent !important;
         border: none !important;
-        padding: 18px 0 !important;
+        padding: 16px 0 !important;
         border-bottom: 1px solid rgba(255, 255, 255, 0.03) !important;
     }
 
@@ -69,9 +69,13 @@ st.markdown("""
         box-shadow: none !important;
     }
 
-    /* Esconder elementos feios nativos do Streamlit */
+    /* Área de upload limpa e discreta no topo lateral */
     div[data-testid="stFileUploader"] {
-        display: none !important;
+        background-color: #181818;
+        border: 1px dashed #333333;
+        border-radius: 10px;
+        padding: 8px;
+        margin-bottom: 10px;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -80,7 +84,7 @@ st.markdown("""
 st.markdown("""
 <div class="chat-header">
     <div class="chat-title">Eternity</div>
-    <div class="chat-subtitle">Como posso ajudar você hoje?</div>
+    <div class="chat-subtitle">Assistente Pessoal & Inteligência Modular</div>
 </div>
 """, unsafe_allow_html=True)
 
@@ -109,24 +113,42 @@ for msg in st.session_state.messages:
     with st.chat_message(msg["role"]):
         st.write(msg["content"])
 
-# 5. Entrada de Texto Flutuante (Estilo ChatGPT puro)
-user_input = st.chat_input("Mensagem para Eternity...")
+# 5. Upload de Imagem Discreto e Entrada de Texto
+uploaded_file = st.file_uploader("📎 Enviar foto de exercício ou documento (Opcional)", type=["jpg", "jpeg", "png"])
+user_input = st.chat_input("Digite sua mensagem para a Eternity...")
 
-if user_input:
+if user_input or uploaded_file:
+    if uploaded_file and not user_input:
+        user_input = "Por favor, analise esta imagem e explique o conteúdo passo a passo."
+
     with st.chat_message("user"):
         st.write(user_input)
+        if uploaded_file:
+            st.image(uploaded_file, caption="Imagem enviada", use_column_width=True)
+
+    content_payload = []
+    if uploaded_file:
+        bytes_data = uploaded_file.getvalue()
+        base64_image = base64.b64encode(bytes_data).decode('utf-8')
+        image_url = f"data:image/jpeg;base64,{base64_image}"
+        content_payload.append({"type": "text", "text": user_input})
+        content_payload.append({
+            "type": "image_url",
+            "image_url": {"url": image_url}
+        })
+    else:
+        content_payload = user_input
 
     st.session_state.messages.append({"role": "user", "content": user_input})
 
     with st.chat_message("assistant"):
         with st.spinner("..."):
             try:
-                # Modelo super estável da Groq que nunca falha
-                model_to_use = "llama3-8b-8k"
+                # Modelo ultra estável e atualizado da Groq
+                model_to_use = "llama-3.2-11b-vision-preview" if uploaded_file else "llama-3.1-8b-instant"
                 
                 messages_to_send = [{"role": "system", "content": SYSTEM_PROMPT}]
-                for m in st.session_state.messages:
-                    messages_to_send.append({"role": m["role"], "content": m["content"]})
+                messages_to_send.append({"role": "user", "content": content_payload})
 
                 response = client.chat.completions.create(
                     model=model_to_use,
