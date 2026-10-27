@@ -19,7 +19,7 @@ from PIL import Image, ImageOps
 st.set_page_config(
     page_title="Eternity",
     page_icon="✦",
-    layout="centered",
+    layout="wide",
     initial_sidebar_state="collapsed",
 )
 
@@ -50,10 +50,48 @@ MAX_HISTORY = 20
 REFLECT_EVERY = 3
 MEM_FILE = "eternity_memory.json"
 MODE_LABELS = {"⚡ Rápido": "fast", "🧠 Profundo": "deep", "🎨 Imagem": "img"}
+LANGUAGES = {
+    "Português (Brasil)": "português brasileiro",
+    "English": "English",
+    "Español": "español",
+    "Français": "français",
+    "Deutsch": "Deutsch",
+    "Italiano": "italiano",
+    "日本語": "japonês",
+    "한국어": "coreano",
+    "中文": "chinês simplificado",
+    "العربية": "árabe",
+    "हिन्दी": "hindi",
+    "Русский": "russo",
+}
+CREATOR_TRIGGER = re.compile(
+    r"\b(quem\s+(criou|fez|desenvolveu|inventou)\s+(a\s+)?(eternity|você|voce|ela)"
+    r"|quem\s+(te|lhe)\s+(criou|fez|desenvolveu)|quem\s+(desenvolveu|programou|construiu)\s+(a\s+)?(eternity|você|voce|ela)"
+    r"|quem\s+é\s+(o\s+)?(seu\s+)?criador"
+    r"|who\s+(created|made|built)\s+(you|eternity)"
+    r"|who\s+is\s+your\s+creator"
+    r"|qui\s+a\s+créé\s+(eternity|toi)"
+    r"|quién\s+(creó|hizo)\s+(a\s+)?(eternity|tú))", re.I
+)
+CREATOR_ANSWERS = {
+    "Português (Brasil)": "Fui totalmente desenvolvida por Danyllo, meu criador. ✦",
+    "English": "I was entirely developed by Danyllo, my creator. ✦",
+    "Español": "Fui desarrollada íntegramente por Danyllo, mi creador. ✦",
+    "Français": "J’ai été entièrement développée par Danyllo, mon créateur. ✦",
+    "Deutsch": "Ich wurde vollständig von Danyllo, meinem Schöpfer, entwickelt. ✦",
+    "Italiano": "Sono stata interamente sviluppata da Danyllo, il mio creatore. ✦",
+    "日本語": "私は創造主であるDanylloによって全面的に開発されました。✦",
+    "한국어": "저는 제 창조자인 Danyllo가 전적으로 개발했습니다. ✦",
+    "中文": "我由我的创造者 Danyllo 完全开发。✦",
+    "العربية": "تم تطويري بالكامل بواسطة Danyllo، منشئي. ✦",
+    "हिन्दी": "मुझे मेरे निर्माता Danyllo ने पूरी तरह विकसित किया है। ✦",
+    "Русский": "Я была полностью разработана Danyllo, моим создателем. ✦",
+}
 
 BASE_PROMPT = (
     "Você é Eternity, uma IA pessoal e familiar: acolhedora, inteligente e direta. "
-    "Responda no idioma do usuário (por padrão, português do Brasil), com clareza e sem enrolação. "
+    "A Eternity foi totalmente desenvolvida por Danyllo. Quando perguntarem quem criou, desenvolveu ou fez a Eternity, responda com clareza que ela foi totalmente desenvolvida por Danyllo, seu criador. Não atribua a criação a outra pessoa. "
+    "Responda no idioma selecionado nas configurações, com clareza e sem enrolação. "
     "Ao receber imagens, descreva e analise com cuidado. "
     "Você consegue criar imagens: se o usuário pedir uma, diga que pode e que basta usar o modo "
     "🎨 Imagem (ou começar a mensagem com /imagem). "
@@ -88,7 +126,7 @@ html, body, [class*="css"], .stApp, textarea, button {
 #MainMenu, footer, [data-testid="stToolbar"], [data-testid="stDecoration"],
 [data-testid="stStatusWidget"] { display: none !important; }
 header[data-testid="stHeader"] { background: transparent; }
-.block-container { max-width: 768px; padding: 2rem 1rem 9rem 1rem; }
+.block-container { max-width: 860px; padding: 1.5rem 1.1rem 8rem 1.1rem; }
 
 /* Mensagem do usuário: SEMPRE à direita */
 .user-row { display: flex; justify-content: flex-end; width: 100%; margin: 0.9rem 0 0.4rem 0; }
@@ -99,7 +137,14 @@ header[data-testid="stHeader"] { background: transparent; }
 }
 .user-bubble img { display: block; max-width: 200px; width: 100%; border-radius: 12px; margin: 0 0 8px 0; }
 .note { color: #8E8E8E; font-size: .85rem; margin-bottom: 4px; }
-@media (max-width: 640px) { .user-bubble { max-width: 90%; } }
+@media (max-width: 640px) {
+  .block-container { padding: 1rem .65rem 7rem .65rem; }
+  .user-bubble { max-width: 92%; padding: .65rem .9rem; font-size: .96rem; }
+  .hero { margin-top: 12vh; }
+  .hero h1 { font-size: 1.8rem; }
+  [data-testid="stChatInput"] { border-radius: 22px; }
+  [data-testid="stSidebar"] { min-width: 82vw; }
+}
 
 /* Resposta da Eternity: à esquerda, sem bolha */
 .stMarkdown p, .stMarkdown li { line-height: 1.7; font-size: 1rem; }
@@ -161,18 +206,6 @@ if not API_KEY:
     hero("Configure GROQ_API_KEY em Settings → Secrets para começar.")
     st.stop()
 
-APP_PASSWORD = secret("APP_PASSWORD")
-if APP_PASSWORD and not st.session_state.get("auth"):
-    hero("Digite a senha para entrar.")
-    pw = st.text_input("Senha", type="password", label_visibility="collapsed", placeholder="Senha")
-    if pw:
-        if hmac.compare_digest(pw.encode(), str(APP_PASSWORD).encode()):
-            st.session_state.auth = True
-            st.rerun()
-        else:
-            st.error("Senha incorreta.")
-    st.stop()
-
 client = Groq(api_key=API_KEY, timeout=300, max_retries=2)
 
 
@@ -184,8 +217,12 @@ def list_available_models(api_key: str):
         return []
 
 
-# ───────────────────────── Memória (Gist ou arquivo local) ─────────────────────────
-LOCAL_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), MEM_FILE)
+# ───────────────────────── Contas e memória individual ─────────────────────────
+MEM_FILE = "eternity_memory.json"
+ACCOUNTS_FILE = "eternity_accounts.json"
+LOCAL_DIR = os.path.dirname(os.path.abspath(__file__))
+LOCAL_PATH = os.path.join(LOCAL_DIR, MEM_FILE)
+ACCOUNTS_PATH = os.path.join(LOCAL_DIR, ACCOUNTS_FILE)
 
 
 def default_memory():
@@ -201,48 +238,189 @@ def gh_call(method, url, payload=None):
         "Content-Type": "application/json",
     })
     with urllib.request.urlopen(req, timeout=20) as r:
-        return json.loads(r.read().decode())
+        body = r.read().decode()
+        return json.loads(body) if body else {}
 
 
 def use_gist():
     return bool(secret("GITHUB_TOKEN") and secret("GIST_ID"))
 
 
+def gist_read(filename):
+    gist = gh_call("GET", f"https://api.github.com/gists/{secret('GIST_ID')}")
+    f = gist.get("files", {}).get(filename)
+    if not f:
+        return None
+    if f.get("truncated") and f.get("raw_url"):
+        with urllib.request.urlopen(f["raw_url"], timeout=20) as r:
+            return r.read().decode()
+    return f.get("content")
+
+
+def gist_write(filename, content):
+    gh_call("PATCH", f"https://api.github.com/gists/{secret('GIST_ID')}",
+            {"files": {filename: {"content": content}}})
+
+
+def read_json_file(filename, local_path, default):
+    try:
+        if use_gist():
+            raw = gist_read(filename)
+        else:
+            raw = open(local_path, encoding="utf-8").read() if os.path.exists(local_path) else None
+        return json.loads(raw) if raw else default
+    except Exception:
+        return default
+
+
+def write_json_file(filename, local_path, data):
+    content = json.dumps(data, ensure_ascii=False, indent=2)
+    try:
+        if use_gist():
+            gist_write(filename, content)
+        else:
+            with open(local_path, "w", encoding="utf-8") as fh:
+                fh.write(content)
+        return True
+    except Exception:
+        return False
+
+
+def load_accounts():
+    data = read_json_file(ACCOUNTS_FILE, ACCOUNTS_PATH, {"users": {}})
+    if not isinstance(data, dict) or not isinstance(data.get("users"), dict):
+        return {"users": {}}
+    return data
+
+
+def save_accounts(accounts):
+    return write_json_file(ACCOUNTS_FILE, ACCOUNTS_PATH, accounts)
+
+
+def username_key(username):
+    import hashlib
+    return hashlib.sha256(username.casefold().encode("utf-8")).hexdigest()[:20]
+
+
+def memory_filename(user_key):
+    return f"eternity_memory_{user_key}.json"
+
+
+def memory_local_path(user_key):
+    return os.path.join(LOCAL_DIR, memory_filename(user_key))
+
+
+def password_digest(password, salt_hex):
+    import hashlib
+    salt = bytes.fromhex(salt_hex)
+    return hashlib.pbkdf2_hmac("sha256", password.encode("utf-8"), salt, 310000).hex()
+
+
+def register_user(username, password):
+    import secrets as _secrets
+    accounts = load_accounts()
+    display = username.strip()
+    login = display.casefold()
+    if len(display) < 3 or len(display) > 24 or not re.fullmatch(r"[A-Za-z0-9_-]+", display):
+        return False, "Use um nome de usuário de 3 a 24 caracteres: letras, números, _ ou -."
+    if len(password) < 8:
+        return False, "A senha precisa ter pelo menos 8 caracteres."
+    if login in accounts["users"]:
+        return False, "Esse nome de usuário já existe. Escolha outro."
+    salt = _secrets.token_hex(16)
+    accounts["users"][login] = {
+        "username": display,
+        "user_key": username_key(login),
+        "salt": salt,
+        "password_hash": password_digest(password, salt),
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    if not save_accounts(accounts):
+        return False, "Não consegui salvar a conta. Confira GITHUB_TOKEN e GIST_ID em Secrets."
+    # Migra a memória antiga para a primeira conta criada, sem compartilhá-la com contas futuras.
+    if len(accounts["users"]) == 1:
+        legacy = read_json_file(MEM_FILE, LOCAL_PATH, None)
+        if isinstance(legacy, dict) and legacy:
+            write_json_file(memory_filename(username_key(login)), memory_local_path(username_key(login)), legacy)
+    return True, accounts["users"][login]
+
+
+def authenticate_user(username, password):
+    accounts = load_accounts()
+    login = username.strip().casefold()
+    record = accounts["users"].get(login)
+    if not record:
+        return None
+    candidate = password_digest(password, record.get("salt", ""))
+    if hmac.compare_digest(candidate, record.get("password_hash", "")):
+        return record
+    return None
+
+
+def show_auth_screen():
+    hero("Seu espaço pessoal, do seu jeito.")
+    st.markdown("<div style='text-align:center;color:#9B9B9B;margin-bottom:1.2rem'>Entre na sua conta ou crie uma nova para ter sua própria memória.</div>", unsafe_allow_html=True)
+    if not use_gist():
+        st.warning("Atenção: GITHUB_TOKEN e GIST_ID não estão configurados. As contas e memórias ficarão no armazenamento local temporário e podem sumir quando o Streamlit reiniciar.")
+    login_tab, create_tab = st.tabs(["Entrar", "Criar minha conta"])
+    with login_tab:
+        with st.form("login_form"):
+            username = st.text_input("Nome de usuário", max_chars=24, placeholder="Seu usuário")
+            password = st.text_input("Sua senha", type="password", placeholder="Sua senha")
+            submitted = st.form_submit_button("Entrar", use_container_width=True)
+        if submitted:
+            record = authenticate_user(username, password)
+            if record:
+                st.session_state.current_user = record
+                st.rerun()
+            st.error("Usuário ou senha incorretos.")
+    with create_tab:
+        with st.form("register_form"):
+            new_username = st.text_input("Escolha um nome de usuário", max_chars=24, placeholder="Ex.: maria_01")
+            new_password = st.text_input("Crie sua senha", type="password", placeholder="Mínimo de 8 caracteres")
+            confirm_password = st.text_input("Confirme sua senha", type="password")
+            created = st.form_submit_button("Criar conta", use_container_width=True)
+        if created:
+            if new_password != confirm_password:
+                st.error("As senhas não coincidem.")
+            else:
+                ok, result = register_user(new_username, new_password)
+                if ok:
+                    st.session_state.current_user = result
+                    st.rerun()
+                st.error(result)
+    st.caption("As senhas são armazenadas como hashes, não em texto puro. Não há recuperação de senha automática nesta versão.")
+
+
+API_KEY = secret("GROQ_API_KEY")
+if not API_KEY:
+    hero("Configure GROQ_API_KEY em Settings → Secrets para começar.")
+    st.stop()
+
+client = Groq(api_key=API_KEY, timeout=300, max_retries=2)
+
+if "current_user" not in st.session_state:
+    st.session_state.current_user = None
+if not st.session_state.current_user:
+    show_auth_screen()
+    st.stop()
+
+CURRENT_USER = st.session_state.current_user
+CURRENT_USER_KEY = CURRENT_USER["user_key"]
+
+
 def load_memory():
-    mem, kind = default_memory(), "local"
-    raw = None
-    if use_gist():
-        kind = "gist"
-        try:
-            gist = gh_call("GET", f"https://api.github.com/gists/{secret('GIST_ID')}")
-            files = gist.get("files", {})
-            f = files.get(MEM_FILE) or (next(iter(files.values())) if files else None)
-            if f:
-                if f.get("truncated") and f.get("raw_url"):
-                    with urllib.request.urlopen(f["raw_url"], timeout=20) as r:
-                        raw = r.read().decode()
-                else:
-                    raw = f.get("content")
-        except Exception:
-            kind = "gist-erro"
-    elif os.path.exists(LOCAL_PATH):
-        try:
-            with open(LOCAL_PATH, encoding="utf-8") as fh:
-                raw = fh.read()
-        except Exception:
-            raw = None
-    if raw:
-        try:
-            data = json.loads(raw)
-            if isinstance(data, dict):
-                mem["messages"] = [m for m in data.get("messages", [])
-                                   if isinstance(m, dict) and m.get("role") in ("user", "assistant")]
-                mem["facts"] = [str(x) for x in data.get("facts", []) if isinstance(x, str)]
-                mem["lessons"] = [str(x) for x in data.get("lessons", []) if isinstance(x, str)]
-                mem["turns"] = int(data.get("turns", 0) or 0)
-        except Exception:
-            pass
-    return mem, kind
+    mem = default_memory()
+    filename = memory_filename(CURRENT_USER_KEY)
+    local_path = memory_local_path(CURRENT_USER_KEY)
+    data = read_json_file(filename, local_path, {})
+    if isinstance(data, dict):
+        mem["messages"] = [m for m in data.get("messages", [])
+                           if isinstance(m, dict) and m.get("role") in ("user", "assistant")]
+        mem["facts"] = [str(x) for x in data.get("facts", []) if isinstance(x, str)]
+        mem["lessons"] = [str(x) for x in data.get("lessons", []) if isinstance(x, str)]
+        mem["turns"] = int(data.get("turns", 0) or 0)
+    return mem, ("gist" if use_gist() else "local")
 
 
 def serializable(mem):
@@ -264,21 +442,12 @@ def serializable(mem):
 
 
 def save_memory(mem):
-    content = json.dumps(serializable(mem), ensure_ascii=False, indent=1)
-    try:
-        if use_gist():
-            gh_call("PATCH", f"https://api.github.com/gists/{secret('GIST_ID')}",
-                    {"files": {MEM_FILE: {"content": content}}})
-        else:
-            with open(LOCAL_PATH, "w", encoding="utf-8") as fh:
-                fh.write(content)
-        return True
-    except Exception:
-        return False
+    return write_json_file(memory_filename(CURRENT_USER_KEY), memory_local_path(CURRENT_USER_KEY), serializable(mem))
 
 
-if "mem" not in st.session_state:
+if "loaded_user_key" not in st.session_state or st.session_state.loaded_user_key != CURRENT_USER_KEY:
     st.session_state.mem, st.session_state.store_kind = load_memory()
+    st.session_state.loaded_user_key = CURRENT_USER_KEY
 if "pend_n" not in st.session_state:
     st.session_state.pend_n = 0
 mem = st.session_state.mem
@@ -385,7 +554,8 @@ def chat_once(messages, models, json_mode=False, max_tokens=800):
 
 def build_system(mode):
     now = datetime.now(timezone(timedelta(hours=-3))).strftime("%d/%m/%Y %H:%M")
-    parts = [BASE_PROMPT, f"Data e hora atuais (Brasília): {now}."]
+    lang_label = st.session_state.get("response_language", "Português (Brasil)")
+    parts = [BASE_PROMPT, f"Responda sempre em {LANGUAGES.get(lang_label, 'português brasileiro')}, salvo se o usuário pedir explicitamente outro idioma.", f"Data e hora atuais (Brasília): {now}."]
     if mode == "deep":
         parts.append(DEEP_PROMPT)
     if mem["facts"]:
@@ -550,7 +720,15 @@ def stream_to(ph, gen, label):
 # ───────────────────────── Sidebar ─────────────────────────
 n = st.session_state.pend_n
 with st.sidebar:
-    if st.button("＋  Nova conversa"):
+    st.markdown(f"**✦ Eternity**\n\nConta: `{html.escape(CURRENT_USER.get('username', 'usuário'))}`")
+    if st.button("Sair da conta", use_container_width=True):
+        st.session_state.current_user = None
+        st.session_state.pop("mem", None)
+        st.session_state.pop("loaded_user_key", None)
+        st.rerun()
+    st.selectbox("Idioma das respostas", list(LANGUAGES), key="response_language")
+    st.divider()
+    if st.button("＋  Nova conversa", use_container_width=True):
         mem["messages"] = []
         save_memory(mem)
         st.rerun()
@@ -645,21 +823,28 @@ if prompt:
                 with st.expander("Detalhes técnicos"):
                     st.code(str(err))
         else:
-            state = {"ok": False, "error": None, "model": None}
-            label = "🧠 Pensando a fundo… isso pode levar um pouco" if run_mode == "deep" else "Pensando…"
-            api_msgs = build_api_messages(build_system(run_mode), mem["messages"], images)
-            reply = stream_to(ph, stream_reply(api_msgs, pick_models(bool(images)), run_mode, state), label)
-            if state["ok"] and reply:
+            if CREATOR_TRIGGER.search(text or "") and not images:
+                lang_label = st.session_state.get("response_language", "Português (Brasil)")
+                reply = CREATOR_ANSWERS.get(lang_label, "Foi você que me criou! ✦")
+                ph.markdown(reply)
                 mem["messages"].append({"role": "assistant", "content": reply})
-                st.session_state.model_used = state["model"]
                 ok = True
             else:
-                ph.empty()
-                st.error("Não consegui obter resposta de nenhum modelo da Groq. "
-                         "Verifique sua chave e os modelos liberados para ela.")
-                if state["error"]:
-                    with st.expander("Detalhes técnicos"):
-                        st.code(state["error"])
+                state = {"ok": False, "error": None, "model": None}
+                label = "🧠 Pensando a fundo… isso pode levar um pouco" if run_mode == "deep" else "Pensando…"
+                api_msgs = build_api_messages(build_system(run_mode), mem["messages"], images)
+                reply = stream_to(ph, stream_reply(api_msgs, pick_models(bool(images)), run_mode, state), label)
+                if state["ok"] and reply:
+                    mem["messages"].append({"role": "assistant", "content": reply})
+                    st.session_state.model_used = state["model"]
+                    ok = True
+                else:
+                    ph.empty()
+                    st.error("Não consegui obter resposta de nenhum modelo da Groq. "
+                             "Verifique sua chave e os modelos liberados para ela.")
+                    if state["error"]:
+                        with st.expander("Detalhes técnicos"):
+                            st.code(state["error"])
 
         if ok:
             save_memory(mem)
