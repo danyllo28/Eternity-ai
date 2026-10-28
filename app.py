@@ -19,9 +19,9 @@ from PIL import Image, ImageOps
 
 st.set_page_config(
     page_title="Eternity",
-    page_icon="✦",
+    page_icon="◈",
     layout="wide",
-    initial_sidebar_state="collapsed",
+    initial_sidebar_state="auto",
 )
 
 # ───────────────────────── Modelos ─────────────────────────
@@ -129,76 +129,109 @@ REFLECT_PROMPT = (
 )
 
 # ───────────────────────── Estilo ─────────────────────────
+# Preferência visual salva na sessão; o modo automático respeita o tema do dispositivo.
+if "ui_theme" not in st.session_state:
+    st.session_state["ui_theme"] = "Automático"
+_ui_theme = st.session_state.get("ui_theme", "Automático")
+_theme_overrides = ""
+if _ui_theme == "Claro":
+    _theme_overrides = """
+    :root { --bg:#FFFFFF; --sidebar:#F7F7F8; --surface:#F3F4F6; --surface-hover:#E9EBEF;
+      --text:#202124; --muted:#666B73; --border:#DADCE0; --accent:#4F46E5;
+      --accent-contrast:#FFFFFF; --shadow:0 8px 28px rgba(20,24,40,.08); }
+    """
+elif _ui_theme == "Escuro":
+    _theme_overrides = """
+    :root { --bg:#17181C; --sidebar:#111216; --surface:#24262D; --surface-hover:#30333B;
+      --text:#F1F2F4; --muted:#A4A8B1; --border:#343741; --accent:#A5B4FC;
+      --accent-contrast:#15161A; --shadow:0 8px 28px rgba(0,0,0,.24); }
+    """
+
 st.markdown(
     """
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap');
-html, body, [class*="css"], .stApp, textarea, button {
-    font-family: 'Inter', -apple-system, 'Segoe UI', Roboto, sans-serif !important;
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;650;700&display=swap');
+:root {
+  color-scheme: light dark;
+  --bg:#17181C; --sidebar:#111216; --surface:#24262D; --surface-hover:#30333B;
+  --text:#F1F2F4; --muted:#A4A8B1; --border:#343741; --accent:#A5B4FC;
+  --accent-contrast:#15161A; --shadow:0 8px 28px rgba(0,0,0,.24);
+  --radius-sm:10px; --radius-md:16px; --radius-lg:24px;
+  --space-1:4px; --space-2:8px; --space-3:12px; --space-4:16px; --space-5:24px;
 }
-.stApp { background: #171717; color: #ECECEC; }
-#MainMenu, footer, [data-testid="stToolbar"], [data-testid="stDecoration"],
-[data-testid="stStatusWidget"] { display: none !important; }
-header[data-testid="stHeader"] { background: transparent; }
-.block-container { max-width: 860px; padding: 1.5rem 1.1rem 8rem 1.1rem; }
-
-/* Mensagem do usuário: SEMPRE à direita */
-.user-row { display: flex; justify-content: flex-end; width: 100%; margin: 0.9rem 0 0.4rem 0; }
-.user-bubble {
-    background: #2F2F2F; color: #ECECEC; border-radius: 22px; padding: 0.6rem 1.1rem;
-    max-width: 85%; text-align: left; line-height: 1.6; font-size: 1rem;
-    overflow-wrap: anywhere; word-break: break-word;
+@media (prefers-color-scheme: light) {
+  :root { color-scheme: light; --bg:#FFFFFF; --sidebar:#F7F7F8; --surface:#F3F4F6; --surface-hover:#E9EBEF; --text:#202124; --muted:#666B73; --border:#DADCE0; --accent:#4F46E5; --accent-contrast:#FFFFFF; --shadow:0 8px 28px rgba(20,24,40,.08); }
 }
-.user-bubble img { display: block; max-width: 200px; width: 100%; border-radius: 12px; margin: 0 0 8px 0; }
-.note { color: #8E8E8E; font-size: .85rem; margin-bottom: 4px; }
-@media (max-width: 640px) {
-  .block-container { padding: 1rem .65rem 7rem .65rem; }
-  .user-bubble { max-width: 92%; padding: .65rem .9rem; font-size: .96rem; }
-  .hero { margin-top: 12vh; }
-  .hero h1 { font-size: 1.8rem; }
-  [data-testid="stChatInput"] { border-radius: 22px; }
-  [data-testid="stSidebar"] { min-width: 82vw; }
+html, body, [class*="css"], .stApp, textarea, button, input {
+  font-family:'Inter',-apple-system,'Segoe UI',Roboto,sans-serif !important;
 }
-
-/* Resposta da Eternity: à esquerda, sem bolha */
-.stMarkdown p, .stMarkdown li { line-height: 1.7; font-size: 1rem; }
-[data-testid="stImage"] img { border-radius: 14px; }
-.thinking { color: #8E8E8E; animation: pulse 1.5s ease-in-out infinite; padding: .3rem 0; }
-@keyframes pulse { 0%,100% { opacity: .35 } 50% { opacity: 1 } }
-
-/* Barra de digitação flutuante */
-[data-testid="stBottom"], [data-testid="stBottom"] > div, [data-testid="stBottomBlockContainer"] {
-    background: transparent !important;
+html { scroll-behavior:smooth; }
+.stApp { background:var(--bg); color:var(--text); transition:background .2s ease,color .2s ease; }
+#MainMenu, footer, [data-testid="stToolbar"], [data-testid="stDecoration"], [data-testid="stStatusWidget"] { display:none !important; }
+header[data-testid="stHeader"] { background:transparent; }
+.block-container { max-width:820px; padding:1.35rem 1.15rem 8rem; }
+[data-testid="stAppViewContainer"] { background:var(--bg); }
+[data-testid="stSidebar"] { background:var(--sidebar); border-right:1px solid var(--border); }
+[data-testid="stSidebar"] > div:first-child { padding-top:1rem; }
+[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] { color:var(--text); }
+[data-testid="stSidebar"] .stButton > button { width:100%; min-height:42px; text-align:left; background:transparent; color:var(--text); border:1px solid var(--border); border-radius:var(--radius-md); transition:background .18s,border-color .18s,transform .18s; }
+[data-testid="stSidebar"] .stButton > button:hover { background:var(--surface-hover); border-color:var(--muted); }
+.stButton > button, .stDownloadButton > button { border-radius:var(--radius-md); transition:background .18s,border-color .18s,transform .18s; }
+.stButton > button:focus-visible, button:focus-visible, textarea:focus-visible, input:focus-visible { outline:2px solid var(--accent) !important; outline-offset:2px !important; }
+.stButton > button:active { transform:scale(.99); }
+[data-testid="stTextInput"] input, [data-testid="stTextArea"] textarea, [data-testid="stSelectbox"] [data-baseweb="select"] > div { border-radius:var(--radius-sm) !important; background:var(--surface) !important; color:var(--text) !important; border-color:var(--border) !important; }
+[data-testid="stExpander"] { border-color:var(--border) !important; border-radius:var(--radius-md) !important; }
+[data-testid="stAlert"] { border-radius:var(--radius-md); }
+[data-testid="stForm"] { border:0 !important; padding:0 !important; }
+[data-testid="stTextArea"] textarea { line-height:1.6 !important; }
+[data-testid="stPopover"] > button, [data-testid="stPopoverButton"] { min-height:34px !important; padding:.2rem .65rem !important; border-radius:999px !important; border:1px solid var(--border) !important; background:transparent !important; color:var(--muted) !important; font-size:.84rem !important; box-shadow:none !important; }
+[data-testid="stPopover"] > button:hover, [data-testid="stPopoverButton"]:hover { background:var(--surface-hover) !important; color:var(--text) !important; border-color:var(--muted) !important; }
+.stMarkdown p, .stMarkdown li { line-height:1.75; font-size:1rem; color:var(--text); }
+.stMarkdown h1,.stMarkdown h2,.stMarkdown h3,.stMarkdown h4 { letter-spacing:-.025em; line-height:1.3; }
+.stMarkdown pre { border:1px solid var(--border); border-radius:var(--radius-md); }
+.stMarkdown table { display:block; overflow-x:auto; border-collapse:collapse; }
+.stMarkdown th,.stMarkdown td { border-color:var(--border) !important; }
+[data-testid="stImage"] img { border-radius:var(--radius-md); }
+.user-row { display:flex; justify-content:flex-end; width:100%; margin:1rem 0 .35rem; }
+.user-bubble { background:var(--surface); color:var(--text); border:1px solid var(--border); border-radius:22px 22px 6px 22px; padding:.7rem 1rem; max-width:84%; text-align:left; line-height:1.68; font-size:1rem; overflow-wrap:anywhere; word-break:break-word; }
+.user-bubble img { display:block; max-width:200px; width:100%; border-radius:12px; margin:0 0 8px; }
+.note { color:var(--muted); font-size:.84rem; margin-bottom:4px; }
+.hero { text-align:center; margin:17vh auto 0; max-width:620px; }
+.hero h1 { font-size:2.35rem; font-weight:600; letter-spacing:-.045em; margin:0; color:var(--text); }
+.hero p { color:var(--muted); margin-top:.65rem; font-size:1.04rem; }
+.brand-mark { display:inline-flex; align-items:center; justify-content:center; width:34px; height:34px; margin-right:9px; border:1px solid var(--border); border-radius:12px; background:var(--surface); color:var(--accent); font-size:18px; font-weight:700; vertical-align:middle; box-shadow:var(--shadow); }
+.thinking { color:var(--muted); animation:eternity-pulse 1.5s ease-in-out infinite; padding:.35rem 0; }
+@keyframes eternity-pulse { 0%,100%{opacity:.5} 50%{opacity:1} }
+[data-testid="stBottom"], [data-testid="stBottom"] > div, [data-testid="stBottomBlockContainer"] { background:transparent !important; }
+[data-testid="stBottom"] { background:linear-gradient(to top,var(--bg) 62%,transparent) !important; }
+[data-testid="stChatInput"] { background:var(--surface) !important; border:1px solid var(--border) !important; border-radius:26px !important; box-shadow:var(--shadow) !important; transition:border-color .18s,box-shadow .18s; }
+[data-testid="stChatInput"] > div { background:transparent !important; border:0 !important; }
+[data-testid="stChatInput"]:focus-within { border-color:var(--accent) !important; box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 15%,transparent),var(--shadow) !important; }
+[data-testid="stChatInput"] textarea { background:transparent !important; color:var(--text) !important; line-height:1.55 !important; }
+[data-testid="stChatInput"] textarea::placeholder { color:var(--muted) !important; }
+[data-testid="stChatInput"] button { background:transparent; color:var(--muted); border:0; border-radius:50%; min-width:40px; min-height:40px; }
+[data-testid="stChatInputSubmitButton"]:not(:disabled) { background:var(--accent) !important; color:var(--accent-contrast) !important; }
+[data-testid="stElementContainer"]:has([data-testid="stButtonGroup"]) { display:flex; justify-content:center; }
+[data-testid="stSidebar"] [data-testid="stMarkdownContainer"] code { color:var(--accent); background:var(--surface); }
+hr { border-color:var(--border) !important; }
+@media (max-width:768px) {
+  .block-container { padding:1rem .75rem 7.5rem; }
+  .user-bubble { max-width:92%; padding:.7rem .85rem; font-size:.96rem; }
+  .hero { margin-top:12vh; padding:0 .4rem; }
+  .hero h1 { font-size:1.9rem; }
+  [data-testid="stChatInput"] { border-radius:22px !important; }
+  [data-testid="stSidebar"] { min-width:min(86vw,340px); }
+  [data-testid="stChatInput"] button { min-width:44px; min-height:44px; }
 }
-[data-testid="stBottom"] { background: linear-gradient(to top, #171717 65%, rgba(23,23,23,0)) !important; }
-[data-testid="stChatInput"] {
-    background: #2F2F2F; border: 1px solid #3B3B3B; border-radius: 28px;
-    box-shadow: 0 4px 24px rgba(0,0,0,.35);
-}
-[data-testid="stChatInput"] > div { background: transparent !important; border: none !important; }
-[data-testid="stChatInput"]:focus-within { border-color: #565656; }
-[data-testid="stChatInput"] textarea { background: transparent !important; color: #ECECEC !important; }
-[data-testid="stChatInput"] textarea::placeholder { color: #8E8E8E; }
-[data-testid="stChatInput"] button { background: transparent; color: #B4B4B4; border: none; border-radius: 50%; }
-[data-testid="stChatInputSubmitButton"]:not(:disabled) { background: #ECECEC !important; color: #171717 !important; }
-
-/* Seletor de modo centralizado */
-[data-testid="stElementContainer"]:has([data-testid="stButtonGroup"]) { display: flex; justify-content: center; }
-
-/* Sidebar */
-[data-testid="stSidebar"] { background: #1E1E1E; border-right: 1px solid #2A2A2A; }
-[data-testid="stSidebar"] .stButton > button {
-    width: 100%; background: transparent; color: #ECECEC; border: 1px solid #3B3B3B; border-radius: 12px;
-}
-[data-testid="stSidebar"] .stButton > button:hover { background: #2A2A2A; border-color: #4A4A4A; }
-
-.hero { text-align: center; margin-top: 20vh; }
-.hero h1 { font-size: 2.1rem; font-weight: 500; letter-spacing: -0.02em; margin: 0; color: #ECECEC; }
-.hero p { color: #8E8E8E; margin-top: .6rem; }
+@media (prefers-reduced-motion: reduce) { *,*::before,*::after { animation-duration:.01ms !important; transition-duration:.01ms !important; scroll-behavior:auto !important; } }
 </style>
 """,
     unsafe_allow_html=True,
 )
+if _theme_overrides:
+    st.markdown(f"<style>{_theme_overrides}</style>", unsafe_allow_html=True)
+if _ui_theme == "Automático":
+    st.markdown('<style>:root{color-scheme:light dark}</style>', unsafe_allow_html=True)
 
 # ───────────────────────── Segredos e acesso ─────────────────────────
 def secret(name, default=None):
@@ -212,7 +245,7 @@ def secret(name, default=None):
 
 
 def hero(text):
-    st.markdown(f'<div class="hero"><h1>✦ Eternity</h1><p>{text}</p></div>', unsafe_allow_html=True)
+    st.markdown(f'<div class="hero"><h1><span class="brand-mark" aria-hidden="true">E</span>Eternity</h1><p>{text}</p></div>', unsafe_allow_html=True)
 
 
 API_KEY = secret("GROQ_API_KEY")
@@ -950,13 +983,14 @@ def generate_reply_for_history(history, user_text, placeholder, forced_effort=No
 # ───────────────────────── Sidebar ─────────────────────────
 n = st.session_state.pend_n
 with st.sidebar:
-    st.markdown(f"**✦ Eternity**\n\nConta: `{html.escape(CURRENT_USER.get('username', 'usuário'))}`")
+    st.markdown(f"<div style='font-size:1.2rem;font-weight:650;margin:.2rem 0 1rem'><span class='brand-mark' aria-hidden='true'>E</span>Eternity</div>Conta: `{html.escape(CURRENT_USER.get('username', 'usuário'))}`", unsafe_allow_html=True)
     if st.button("Sair da conta", use_container_width=True):
         st.session_state.current_user = None
         st.session_state.pop("mem", None)
         st.session_state.pop("loaded_user_key", None)
         st.rerun()
     with st.expander("⚙️ Preferências da Eternity", expanded=False):
+        st.selectbox("Tema da interface", ["Automático", "Claro", "Escuro"], key="ui_theme", help="Automático acompanha a preferência de cores do dispositivo.")
         st.selectbox("Idioma das respostas", list(LANGUAGES), key="response_language")
         st.selectbox(
             "Esforço de raciocínio",
@@ -1177,6 +1211,97 @@ with st.sidebar:
             st.session_state.pop(f"response_style_{CURRENT_USER_KEY}", None)
             st.rerun()
 
+
+# Personalização acessível pela tela principal (mais fácil no celular e no computador).
+if "show_personalization_page" not in st.session_state:
+    st.session_state["show_personalization_page"] = False
+
+_top_cols = st.columns([0.72, 0.28])
+with _top_cols[1]:
+    if st.button(
+        "⚙️ Personalizar" if not st.session_state["show_personalization_page"] else "✕ Fechar ajustes",
+        key="main_open_personalization",
+        use_container_width=True,
+    ):
+        st.session_state["show_personalization_page"] = not st.session_state["show_personalization_page"]
+        st.rerun()
+
+if st.session_state["show_personalization_page"]:
+    _prefs_main = mem.get("personalization", {})
+    if not isinstance(_prefs_main, dict):
+        _prefs_main = {}
+    st.markdown("## ⚙️ Personalização da Eternity")
+    st.caption("Ajuste como a Eternity aparece e como ela responde. As opções são salvas somente na conta conectada.")
+    _main_tabs = st.tabs(["Aparência", "Respostas", "Instruções e perfil"])
+    _main_prefix = f"main_personalize_{CURRENT_USER_KEY}_"
+    _main_defaults = {
+        "theme": _prefs_main.get("theme", st.session_state.get("ui_theme", "Automático")),
+        "accent": _prefs_main.get("accent", "Índigo"),
+        "font_size": _prefs_main.get("font_size", "Padrão"),
+        "density": _prefs_main.get("density", "Confortável"),
+        "tone": _prefs_main.get("tone", "Natural e acolhedor"),
+        "language": _prefs_main.get("language", st.session_state.get("response_language", "Português (Brasil)")),
+        "reasoning": _prefs_main.get("reasoning", st.session_state.get("reasoning_preference", "Automático")),
+        "style": _prefs_main.get("style", mem.get("response_style", "Equilibrado")),
+        "custom": mem.get("custom_instructions", ""),
+        "about": _prefs_main.get("about", ""),
+    }
+    for _field, _value in _main_defaults.items():
+        _key = _main_prefix + _field
+        if _key not in st.session_state:
+            st.session_state[_key] = _value
+
+    with _main_tabs[0]:
+        _ca, _cb = st.columns(2)
+        with _ca:
+            st.selectbox("Tema", ["Automático", "Claro", "Escuro"], key=_main_prefix + "theme")
+            st.selectbox("Cor de destaque", ["Índigo", "Azul", "Verde", "Rosa", "Laranja", "Ciano"], key=_main_prefix + "accent")
+        with _cb:
+            st.selectbox("Tamanho do texto", ["Pequeno", "Padrão", "Grande"], key=_main_prefix + "font_size")
+            st.selectbox("Espaçamento", ["Compacto", "Confortável"], key=_main_prefix + "density")
+    with _main_tabs[1]:
+        _ca, _cb = st.columns(2)
+        with _ca:
+            st.selectbox("Idioma das respostas", list(LANGUAGES), key=_main_prefix + "language")
+            st.selectbox("Tom de voz", ["Natural e acolhedor", "Profissional", "Descontraído", "Criativo", "Acadêmico"], key=_main_prefix + "tone")
+        with _cb:
+            st.selectbox("Extensão das respostas", ["Conciso", "Equilibrado", "Detalhado"], key=_main_prefix + "style")
+            st.selectbox("Esforço de raciocínio", REASONING_LEVELS, key=_main_prefix + "reasoning",
+                         help="Níveis mais altos podem demorar mais e dependem do modelo disponível.")
+    with _main_tabs[2]:
+        st.text_area("Instruções personalizadas", key=_main_prefix + "custom", max_chars=2000, height=150,
+                     placeholder="Ex.: explique passo a passo, use palavras simples, dê exemplos e evite respostas muito longas.",
+                     help="Você pode mudar essas instruções quando quiser. Não coloque senhas, tokens ou chaves de API.")
+        st.text_area("O que a Eternity deve saber sobre você", key=_main_prefix + "about", max_chars=1200, height=110,
+                     placeholder="Ex.: meus objetivos, temas de interesse e contexto que ajude nas respostas.",
+                     help="Esse contexto fica associado à memória desta conta.")
+    if st.button("💾 Salvar personalização", key=_main_prefix + "save", type="primary", use_container_width=True):
+        _accent_colors = {"Índigo": "#818CF8", "Azul": "#60A5FA", "Verde": "#34D399",
+                          "Rosa": "#F472B6", "Laranja": "#FB923C", "Ciano": "#22D3EE"}
+        mem["personalization"] = {
+            "theme": st.session_state[_main_prefix + "theme"],
+            "accent": st.session_state[_main_prefix + "accent"],
+            "accent_hex": _accent_colors[st.session_state[_main_prefix + "accent"]],
+            "font_size": st.session_state[_main_prefix + "font_size"],
+            "density": st.session_state[_main_prefix + "density"],
+            "tone": st.session_state[_main_prefix + "tone"],
+            "language": st.session_state[_main_prefix + "language"],
+            "reasoning": st.session_state[_main_prefix + "reasoning"],
+            "style": st.session_state[_main_prefix + "style"],
+            "about": st.session_state[_main_prefix + "about"].strip()[:1200],
+        }
+        mem["custom_instructions"] = st.session_state[_main_prefix + "custom"].strip()[:2000]
+        mem["response_style"] = st.session_state[_main_prefix + "style"]
+        st.session_state["ui_theme"] = st.session_state[_main_prefix + "theme"]
+        st.session_state["response_language"] = st.session_state[_main_prefix + "language"]
+        st.session_state["reasoning_preference"] = st.session_state[_main_prefix + "reasoning"]
+        if save_memory(mem):
+            st.success("Personalização salva nesta conta.")
+            st.rerun()
+        else:
+            st.error("Não consegui salvar as preferências. Confira a conexão com o armazenamento.")
+    st.divider()
+
 # ───────────────────────── Tela principal ─────────────────────────
 if not mem["messages"]:
     hero("Como posso ajudar você hoje?")
@@ -1200,33 +1325,44 @@ prompt = st.chat_input(
     file_type=["png", "jpg", "jpeg", "webp", "pdf", "txt", "md", "csv", "json"],
 )
 
-# Render messages with editing, retry, continuation, feedback and copy helpers.
+# Render messages with compact, ChatGPT-style message controls.
 for i, m in enumerate(mem["messages"]):
     search_term = st.session_state.get(f"chat_search_{CURRENT_USER_KEY}", "").strip().casefold()
     searchable_text = (str(m.get("display_content", "")) + " " + str(m.get("content", ""))).casefold()
     if search_term and search_term not in searchable_text:
         continue
+
     render(m)
     if m.get("role") == "user":
-        if st.button("✎ Editar mensagem", key=f"edit_message_btn_{CURRENT_USER_KEY}_{i}"):
-            st.session_state[f"editing_message_{CURRENT_USER_KEY}"] = i
-            st.rerun()
-        if st.session_state.get(f"editing_message_{CURRENT_USER_KEY}") == i:
-            if m.get("thumbs") or m.get("note"):
-                st.caption("Observação: ao regenerar, o texto editado será enviado novamente; o anexo original não é reenviado automaticamente.")
-            edit_key = f"edit_message_text_{CURRENT_USER_KEY}_{i}"
-            st.text_area("Edite sua mensagem", value=str(m.get("content", "")), key=edit_key, max_chars=12000, height=110)
-            edit_cols = st.columns([1, 1])
-            with edit_cols[0]:
-                if st.button("Salvar e gerar nova resposta", key=f"save_edit_{CURRENT_USER_KEY}_{i}", use_container_width=True):
+        _, edit_col = st.columns([0.78, 0.22])
+        with edit_col:
+            with st.popover("✎ Editar", use_container_width=True):
+                st.caption("Edite a mensagem e gere uma nova resposta. As mensagens posteriores serão substituídas.")
+                if m.get("thumbs") or m.get("note"):
+                    st.info("Esta mensagem tinha um anexo. O texto será editado, mas o arquivo original não será reenviado à IA automaticamente.")
+                edit_key = f"edit_message_text_{CURRENT_USER_KEY}_{i}"
+                with st.form(f"edit_message_form_{CURRENT_USER_KEY}_{i}", clear_on_submit=False):
+                    st.text_area(
+                        "Mensagem", value=str(m.get("content", "")), key=edit_key,
+                        max_chars=12000, height=130,
+                        placeholder="Escreva a versão corrigida da sua mensagem…",
+                    )
+                    save_edit = st.form_submit_button("Salvar e regenerar", type="primary", use_container_width=True)
+                if save_edit:
                     new_text = st.session_state.get(edit_key, "").strip()
                     if not new_text:
                         st.warning("A mensagem não pode ficar vazia.")
                     else:
-                        mem["messages"] = mem["messages"][:i]
+                        # Editing a past user turn deliberately discards all later turns,
+                        # exactly as a branching conversation should, without inflating turn count.
+                        old_turns = mem.get("turns", 0)
                         edited = {"role": "user", "content": new_text, "display_content": new_text}
-                        mem["messages"].append(edited)
-                        mem["turns"] += 1
+                        if m.get("note"):
+                            edited["note"] = m.get("note")
+                        if m.get("thumbs"):
+                            edited["thumbs"] = m.get("thumbs")
+                        mem["messages"] = mem["messages"][:i] + [edited]
+                        mem["turns"] = old_turns
                         save_memory(mem)
                         placeholder = st.empty()
                         reply_msg, state = generate_reply_for_history(mem["messages"], new_text, placeholder)
@@ -1234,79 +1370,78 @@ for i, m in enumerate(mem["messages"]):
                             mem["messages"].append(reply_msg)
                             save_memory(mem)
                         else:
-                            st.error("Não consegui gerar uma nova resposta. Confira a conexão ou as chaves configuradas.")
+                            st.error("Não consegui gerar a nova resposta. Sua mensagem editada foi mantida; tente novamente.")
                             if state.get("error"):
                                 st.caption(str(state["error"])[:500])
-                        st.session_state.pop(f"editing_message_{CURRENT_USER_KEY}", None)
                         st.rerun()
-            with edit_cols[1]:
-                if st.button("Cancelar edição", key=f"cancel_edit_{CURRENT_USER_KEY}_{i}", use_container_width=True):
-                    st.session_state.pop(f"editing_message_{CURRENT_USER_KEY}", None)
-                    st.rerun()
+
     elif m.get("role") == "assistant":
-        action_cols = st.columns(4)
-        with action_cols[0]:
-            if i > 0 and mem["messages"][i - 1].get("role") == "user" and st.button("↻ Tentar novamente", key=f"retry_{CURRENT_USER_KEY}_{i}"):
-                last_user = mem["messages"][i - 1]
-                history = mem["messages"][:i]
-                mem["messages"] = history
-                save_memory(mem)
-                placeholder = st.empty()
-                reply_msg, state = generate_reply_for_history(history, str(last_user.get("content", "")), placeholder)
-                if reply_msg:
-                    mem["messages"].append(reply_msg)
+        with st.popover("⋯ Ações da resposta"):
+            st.markdown("**Copiar resposta**")
+            st.code(str(m.get("content", "")), language=None)
+            previous_is_user = i > 0 and mem["messages"][i - 1].get("role") == "user"
+            if previous_is_user:
+                if st.button("↻ Tentar novamente", key=f"retry_{CURRENT_USER_KEY}_{i}", use_container_width=True):
+                    last_user = mem["messages"][i - 1]
+                    history = mem["messages"][:i]
+                    mem["messages"] = history
                     save_memory(mem)
-                else:
-                    st.error("A nova tentativa falhou. Verifique as configurações da IA.")
-                    if state.get("error"):
-                        st.caption(str(state["error"])[:500])
-                st.rerun()
-        with action_cols[1]:
-            if i > 0 and mem["messages"][i - 1].get("role") == "user" and st.button("↻ Esforço alto", key=f"retry_high_{CURRENT_USER_KEY}_{i}"):
-                last_user = mem["messages"][i - 1]
-                history = mem["messages"][:i]
-                mem["messages"] = history
-                save_memory(mem)
-                placeholder = st.empty()
-                reply_msg, state = generate_reply_for_history(history, str(last_user.get("content", "")), placeholder, forced_effort="high")
-                if reply_msg:
-                    mem["messages"].append(reply_msg)
-                    save_memory(mem)
-                else:
-                    st.error("Não consegui regenerar com esforço alto.")
-                st.rerun()
-        with action_cols[2]:
-            if i == len(mem["messages"]) - 1 and st.button("Continuar resposta", key=f"continue_{CURRENT_USER_KEY}_{i}"):
-                effort = resolve_effort(str(m.get("content", "")))
-                api_mode = "deep" if effort in ("medium", "high", "max") else "fast"
-                api_msgs = build_api_messages(build_system(api_mode, effort), mem["messages"][:i + 1], [])
-                api_msgs.append({"role": "user", "content": "Continue a resposta anterior a partir do ponto em que parou. Evite repetir o que já foi dito."})
-                state = {"ok": False, "error": None, "model": None, "used_web_search": False}
-                placeholder = st.empty()
-                continuation = stream_to(placeholder, stream_reply(api_msgs, pick_models(False, effort), api_mode, state, effort=effort), "Continuando a resposta…")
-                if state["ok"] and continuation:
-                    mem["messages"][i]["content"] = str(mem["messages"][i].get("content", "")) + "\n\n" + continuation
-                    save_memory(mem)
-                else:
-                    st.error("Não consegui continuar a resposta.")
-                st.rerun()
-        with action_cols[3]:
-            with st.popover("⋯ Ações"):
-                st.markdown("**Copiar resposta**")
-                st.code(str(m.get("content", "")), language=None)
-                current_feedback = m.get("feedback")
-                st.caption("Esta resposta foi marcada como útil." if current_feedback == "útil" else ("Esta resposta foi marcada como não útil." if current_feedback == "não útil" else "A avaliação ajuda a acompanhar a qualidade."))
-                fcols = st.columns(2)
-                with fcols[0]:
-                    if st.button("👍 Útil", key=f"feedback_up_{CURRENT_USER_KEY}_{i}", use_container_width=True):
-                        mem["messages"][i]["feedback"] = "útil"
+                    placeholder = st.empty()
+                    reply_msg, state = generate_reply_for_history(history, str(last_user.get("content", "")), placeholder)
+                    if reply_msg:
+                        mem["messages"].append(reply_msg)
                         save_memory(mem)
-                        st.rerun()
-                with fcols[1]:
-                    if st.button("👎 Não útil", key=f"feedback_down_{CURRENT_USER_KEY}_{i}", use_container_width=True):
-                        mem["messages"][i]["feedback"] = "não útil"
+                    else:
+                        st.error("A nova tentativa falhou. Verifique a conexão e as configurações da IA.")
+                        if state.get("error"):
+                            st.caption(str(state["error"])[:500])
+                    st.rerun()
+                if st.button("↻ Tentar com esforço alto", key=f"retry_high_{CURRENT_USER_KEY}_{i}", use_container_width=True):
+                    last_user = mem["messages"][i - 1]
+                    history = mem["messages"][:i]
+                    mem["messages"] = history
+                    save_memory(mem)
+                    placeholder = st.empty()
+                    reply_msg, state = generate_reply_for_history(history, str(last_user.get("content", "")), placeholder, forced_effort="high")
+                    if reply_msg:
+                        mem["messages"].append(reply_msg)
                         save_memory(mem)
-                        st.rerun()
+                    else:
+                        st.error("Não consegui regenerar com esforço alto.")
+                        if state.get("error"):
+                            st.caption(str(state["error"])[:500])
+                    st.rerun()
+            if i == len(mem["messages"]) - 1:
+                if st.button("Continuar resposta", key=f"continue_{CURRENT_USER_KEY}_{i}", use_container_width=True):
+                    effort = resolve_effort(str(m.get("content", "")))
+                    api_mode = "deep" if effort in ("medium", "high", "max") else "fast"
+                    api_msgs = build_api_messages(build_system(api_mode, effort), mem["messages"][:i + 1], [])
+                    api_msgs.append({"role": "user", "content": "Continue a resposta anterior a partir do ponto em que parou. Evite repetir o que já foi dito."})
+                    state = {"ok": False, "error": None, "model": None, "used_web_search": False}
+                    placeholder = st.empty()
+                    continuation = stream_to(placeholder, stream_reply(api_msgs, pick_models(False, effort), api_mode, state, effort=effort), "Continuando a resposta…")
+                    if state["ok"] and continuation:
+                        mem["messages"][i]["content"] = str(mem["messages"][i].get("content", "")) + "\n\n" + continuation
+                        save_memory(mem)
+                    else:
+                        st.error("Não consegui continuar a resposta.")
+                        if state.get("error"):
+                            st.caption(str(state["error"])[:500])
+                    st.rerun()
+            st.divider()
+            current_feedback = m.get("feedback")
+            st.caption("Avaliação atual: " + ("útil" if current_feedback == "útil" else "não útil" if current_feedback == "não útil" else "sem avaliação"))
+            feedback_cols = st.columns(2)
+            with feedback_cols[0]:
+                if st.button("👍 Útil", key=f"feedback_up_{CURRENT_USER_KEY}_{i}", use_container_width=True):
+                    mem["messages"][i]["feedback"] = "útil"
+                    save_memory(mem)
+                    st.rerun()
+            with feedback_cols[1]:
+                if st.button("👎 Não útil", key=f"feedback_down_{CURRENT_USER_KEY}_{i}", use_container_width=True):
+                    mem["messages"][i]["feedback"] = "não útil"
+                    save_memory(mem)
+                    st.rerun()
 
 if prompt or st.session_state.get("suggested_prompt"):
     if prompt:
