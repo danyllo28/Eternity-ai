@@ -1,0 +1,13 @@
+theme]
+base = "dark"
+primaryColor = "#4B5563"
+backgroundColor = "#17181C"
+secondaryBackgroundColor = "#24262D"
+textColor = "#F1F2F4"
+borderColor = "#343741"
+baseRadius = "medium"
+buttonRadius = "medium"
+showWidgetBorder = true
+
+[server]
+maxUploadSize = 30
