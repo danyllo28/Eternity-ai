@@ -1380,6 +1380,9 @@ with st.sidebar:
 
 
 # Personalização acessível pela tela principal (mais fácil no celular e no computador).
+if "show_personalization_page" not in st.session_state:
+    st.session_state["show_personalization_page"] = False
+
 def _toggle_personalization_page():
     st.session_state["show_personalization_page"] = not bool(
         st.session_state.get("show_personalization_page", False)
