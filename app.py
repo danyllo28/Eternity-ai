@@ -1428,6 +1428,23 @@ if _show_settings_panel:
 else:
     _chat_col, _settings_col = st.container(), None
 
+# O campo de mensagem fica fixo na parte inferior, alinhado à largura da conversa.
+with st.bottom:
+    if _show_settings_panel:
+        _bottom_chat_col, _bottom_settings_spacer = st.columns([2.12, 1], gap="large")
+        with _bottom_chat_col:
+            prompt = st.chat_input(
+                "Pergunte qualquer coisa à Eternity…",
+                accept_file="multiple",
+                file_type=["png", "jpg", "jpeg", "webp", "pdf", "txt", "md", "csv", "json"],
+            )
+    else:
+        prompt = st.chat_input(
+            "Pergunte qualquer coisa à Eternity…",
+            accept_file="multiple",
+            file_type=["png", "jpg", "jpeg", "webp", "pdf", "txt", "md", "csv", "json"],
+        )
+
 with _chat_col:
     _top_cols = st.columns([0.43, 0.37, 0.20], vertical_alignment="center")
     with _top_cols[0]:
@@ -1472,11 +1489,7 @@ with _chat_col:
                     st.session_state["suggested_prompt"] = quick
                     st.rerun()
 
-    prompt = st.chat_input(
-        "Pergunte qualquer coisa à Eternity…",
-        accept_file="multiple",
-        file_type=["png", "jpg", "jpeg", "webp", "pdf", "txt", "md", "csv", "json"],
-    )
+
 
     # Render messages with compact, ChatGPT-style message controls.
     for i, m in enumerate(mem["messages"]):
