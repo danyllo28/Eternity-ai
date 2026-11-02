@@ -256,7 +256,7 @@ input[type="checkbox"], input[type="radio"] { accent-color:var(--accent) !import
 [data-testid="stSidebar"] .stButton > button:hover { background:var(--surface-hover) !important; border-color:var(--border) !important; }
 [data-testid="stAlert"] { border-color:var(--border) !important; }
 [data-testid="stSelectbox"] [data-baseweb="select"] > div { box-shadow:none !important; }
-.st-key-main_open_personalization button { min-height:40px; }
+.st-key-main_open_personalization button { min-height:44px; font-weight:650; border-radius:999px !important; padding-inline:1rem !important; }
 .stButton > button:active { transform:scale(.99); }
 [data-testid="stTextInput"] input, [data-testid="stTextArea"] textarea, [data-testid="stSelectbox"] [data-baseweb="select"] > div { border-radius:var(--radius-sm) !important; background:var(--surface) !important; color:var(--text) !important; border-color:var(--border) !important; }
 [data-testid="stExpander"] { border-color:var(--border) !important; border-radius:var(--radius-md) !important; }
@@ -1380,20 +1380,27 @@ with st.sidebar:
 
 
 # Personalização acessível pela tela principal (mais fácil no celular e no computador).
-if "show_personalization_page" not in st.session_state:
-    st.session_state["show_personalization_page"] = False
+def _toggle_personalization_page():
+    st.session_state["show_personalization_page"] = not bool(
+        st.session_state.get("show_personalization_page", False)
+    )
 
-_top_cols = st.columns([0.72, 0.28])
+_top_cols = st.columns([0.66, 0.34], vertical_alignment="center")
 with _top_cols[0]:
-    st.markdown(f'<div class="workspace-top"><span class="brand-mark" aria-hidden="true">{CROWN_SVG}</span><span>Eternity</span></div><div class="workspace-caption">Sua IA pessoal, do seu jeito</div>', unsafe_allow_html=True)
+    st.markdown(
+        f'<div class="workspace-top"><span class="brand-mark" aria-hidden="true">{CROWN_SVG}</span><span>Eternity</span></div>'
+        '<div class="workspace-caption">Interface renovada V8 · Sua IA pessoal, do seu jeito</div>',
+        unsafe_allow_html=True,
+    )
 with _top_cols[1]:
-    if st.button(
-        "⚙️ Personalizar" if not st.session_state["show_personalization_page"] else "✕ Fechar ajustes",
+    _settings_label = "⚙️ Personalizar" if not st.session_state.get("show_personalization_page", False) else "✕ Voltar à conversa"
+    st.button(
+        _settings_label,
         key="main_open_personalization",
+        type="primary",
         use_container_width=True,
-    ):
-        st.session_state["show_personalization_page"] = not st.session_state["show_personalization_page"]
-        st.rerun()
+        on_click=_toggle_personalization_page,
+    )
 
 if st.session_state["show_personalization_page"]:
     _prefs_main = mem.get("personalization", {})
