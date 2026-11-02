@@ -1408,9 +1408,10 @@ with st.sidebar:
 
 
 # Interface principal da Eternity — layout responsivo com conversa e painel lateral.
-if "v8_layout_initialized" not in st.session_state:
+_layout_user_flag = f"v8_layout_initialized_{CURRENT_USER_KEY}"
+if _layout_user_flag not in st.session_state:
     st.session_state["show_personalization_page"] = True
-    st.session_state["v8_layout_initialized"] = True
+    st.session_state[_layout_user_flag] = True
 
 def _toggle_personalization_page():
     st.session_state["show_personalization_page"] = not bool(
