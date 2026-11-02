@@ -1744,10 +1744,9 @@ if _settings_col is not None:
             _prefs_main = mem.get("personalization", {})
             if not isinstance(_prefs_main, dict):
                 _prefs_main = {}
-            st.markdown('<div class="settings-title">Configurações</div>', unsafe_allow_html=True)
-            st.caption("Personalize aparência, respostas, perfil e dados da sua conta.")
-            st.caption("Ajuste como a Eternity aparece e como ela responde. As opções são salvas somente na conta conectada.")
-            _main_tabs = st.tabs(["Aparência", "Respostas", "Instruções e perfil", "Dados e privacidade"])
+            st.markdown('<div class="settings-title">♕ Personalização</div>', unsafe_allow_html=True)
+            st.caption("Configure a Eternity do seu jeito.")
+            _main_tabs = st.tabs(["Geral", "Aparência", "Respostas", "Personalidade"])
             _main_prefix = f"main_personalize_{CURRENT_USER_KEY}_"
             _main_defaults = {
                 "theme": _prefs_main.get("theme", st.session_state.get("ui_theme", "Automático")),
