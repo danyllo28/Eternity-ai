@@ -1,0 +1,6 @@
+.venv/
+__pycache__/
+*.pyc
+eternity_accounts.json
+eternity_memory*.json
+.streamlit/secrets.toml
