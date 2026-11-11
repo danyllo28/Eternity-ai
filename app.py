@@ -543,9 +543,18 @@ hr { border-color:var(--et-border) !important; }
   .st-key-et_topbar [data-testid="stSelectbox"] { max-width:100%; }
 }
 @media (max-width:900px) { .block-container { padding:.9rem .8rem 9.5rem; } .et-hero { margin-top:4vh; } }
+@media (max-width:820px) {
+  [data-testid="stColumn"]:has(.et-settings-open) {
+    position:fixed; inset:0; z-index:999999; width:100%; max-width:100%;
+    background:var(--et-bg); overflow-y:auto; margin:0; padding:1rem .85rem 3rem;
+  }
+  body:has(.et-settings-open) [data-testid="stBottom"] { display:none !important; }
+  body:has(.et-settings-open) { overflow:hidden; }
+}
 @media (max-width:640px) {
   .block-container { padding:.9rem .7rem 10rem; }
   .st-key-et_topbar { margin-bottom:.6rem; }
+  .st-key-et_topbar [data-testid="stSelectbox"] { max-width:none; }
   .et-hero { margin:1.6rem auto 1.3rem; }
 }
 
@@ -643,16 +652,6 @@ def stage_loader_html(steps):
         "</div>"
     )
 
-
-def collapse_stages(placeholder, steps):
-    """Depois da resposta, a linha do tempo fica recolhida em 'Ver etapas'."""
-    icons = {"done": "✓", "skipped": "→", "error": "✕"}
-    with placeholder.container():
-        with st.expander("Ver etapas", expanded=False):
-            for step in steps:
-                icon = icons.get(step.get("status", ""), "•")
-                meta = f" · {step['meta']}" if step.get("meta") else ""
-                st.markdown(f"{icon} **{step['label']}**{meta}")
 
 # ───────────────────────── Segredos e acesso ─────────────────────────
 def secret(name, default=None):
@@ -1909,8 +1908,7 @@ def render_chat_page():
         with _head_cols[0]:
             st.markdown(
                 f'<div class="et-page-title" style="font-size:1.05rem;margin:.2rem 0 0">'
-                f'{html.escape(str(mem.get("conversation_title", "Conversa")))}</div>'
-                f'<div class="et-page-sub" style="margin:0">{len(mem["messages"])} mensagens nesta conversa</div>',
+                f'{html.escape(str(mem.get("conversation_title", "Conversa")))}</div>',
                 unsafe_allow_html=True,
             )
         with _head_cols[1]:
@@ -1934,9 +1932,9 @@ def render_chat_page():
 
         render(_m)
         if _m.get("role") == "user":
-            _, _edit_col = st.columns([0.8, 0.2])
+            _, _edit_col = st.columns([0.94, 0.06])
             with _edit_col:
-                with st.popover("✎ Editar", use_container_width=True):
+                with st.popover("✎", help="Editar mensagem", width="content"):
                     st.caption("Edite a mensagem e gere uma nova resposta. As mensagens posteriores serão substituídas.")
                     if _m.get("thumbs") or _m.get("note"):
                         st.info("Esta mensagem tinha um anexo. O texto será editado, mas o arquivo original não será reenviado à IA automaticamente.")
@@ -1974,7 +1972,7 @@ def render_chat_page():
                             st.rerun()
 
         elif _m.get("role") == "assistant":
-            with st.popover("⋯ Ações da resposta"):
+            with st.popover("⋯", help="Ações da resposta", width="content"):
                 st.markdown("**Copiar resposta**")
                 st.code(str(_m.get("content", "")), language=None)
                 _previous_is_user = _i > 0 and mem["messages"][_i - 1].get("role") == "user"
@@ -2031,11 +2029,6 @@ def render_chat_page():
                             if _state.get("error"):
                                 st.caption(hide_model_ids(str(_state["error"]))[:500])
                         st.rerun()
-                st.divider()
-                _current_feedback = _m.get("feedback")
-                st.caption("Avaliação atual: " + (
-                    "útil" if _current_feedback == "útil"
-                    else "não útil" if _current_feedback == "não útil" else "sem avaliação"))
                 _feedback_cols = st.columns(2)
                 with _feedback_cols[0]:
                     if st.button("👍 Útil", key=f"feedback_up_{CURRENT_USER_KEY}_{_i}", width="stretch"):
@@ -2205,7 +2198,7 @@ with _chat_col:
                 if data:
                     _steps[1]["status"] = "done"
                     _steps[2]["status"] = "done"
-                    collapse_stages(_ops_ph, _steps)
+                    _ops_ph.empty()
                     _reply_msg = {"role": "assistant", "gen": data, "content": "Aqui está sua imagem. ✦"}
                     mem["messages"].append(_reply_msg)
                     with ph.container():
@@ -2262,14 +2255,10 @@ with _chat_col:
                     if state["ok"] and reply:
                         mem["messages"].append({"role": "assistant", "content": reply})
                         st.session_state.model_used = state["model"]
-                        collapse_stages(_ops_ph, _steps)
+                        _ops_ph.empty()
                         ok = True
                     else:
-                        for _step in _steps:
-                            if _step["status"] in ("active", "pending"):
-                                _step["status"] = "error"
-                                _step["meta"] = "interrompido"
-                        _ops_ph.markdown(stage_loader_html(_steps), unsafe_allow_html=True)
+                        _ops_ph.empty()
                         ph.empty()
                         st.error(
                             "Não consegui obter resposta de nenhum modelo da Eternity. "
@@ -2302,6 +2291,7 @@ with _chat_col:
 
 if _settings_col is not None:
     with _settings_col:
+        st.markdown('<div class="et-settings-open"></div>', unsafe_allow_html=True)
         with st.container(key="et_settings_panel", border=True):
             _prefs_main = mem.get("personalization", {})
             if not isinstance(_prefs_main, dict):
