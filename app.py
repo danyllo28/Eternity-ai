@@ -514,6 +514,48 @@ hr { border-color:var(--et-border) !important; }
 @keyframes et-spin { to{transform:rotate(360deg)} }
 @keyframes et-dotpulse { 0%,100%{opacity:.45;transform:scale(.82)} 50%{opacity:1;transform:scale(1.15)} }
 
+/* ── Polimento V9.1: hierarquia e respiro ─────────────────────── */
+.block-container { max-width:1560px; padding:1.5rem 2.2rem 10rem; }
+[data-testid="stSidebar"] [data-testid="stVerticalBlock"] { gap:.22rem; }
+[data-testid="stSidebar"] .stButton > button { justify-content:flex-start !important; min-height:38px; padding:.32rem .6rem !important; }
+[data-testid="stSidebar"] .stButton > button > div { width:100%; justify-content:flex-start !important; }
+[data-testid="stSidebar"] .stButton > button p { text-align:left !important; width:100%; }
+.et-brand { padding:.1rem .15rem .35rem; }
+.et-brand-sub { padding:0 .2rem .55rem; }
+.et-side-divider { height:1px; background:var(--et-border); margin:.75rem .2rem; }
+.et-side-label { margin:1rem 0 .35rem; padding:0 .3rem; }
+.et-hero { max-width:680px; margin:8vh auto 2rem; }
+.et-hero-crown { margin-bottom:.6rem; }
+.et-hero-crown svg { width:38px; height:34px; }
+.et-hero h1 { font-size:2rem; font-weight:650; }
+.et-hero p { margin-top:.7rem; font-size:.98rem; line-height:1.6; }
+[class*="st-key-et_sugg_"] button { min-height:62px; justify-content:flex-start !important; padding:.9rem 1.1rem !important; border-radius:14px !important; background:var(--et-surface) !important; }
+[class*="st-key-et_sugg_"] button > div { width:100%; justify-content:flex-start !important; }
+[class*="st-key-et_sugg_"] button p { text-align:left !important; width:100%; font-size:.92rem; }
+[class*="st-key-et_chips_"] button { margin-right:.1rem; }
+[data-testid="stPopover"] > button, [data-testid="stPopoverButton"] {
+  min-height:38px !important; padding:.25rem .85rem !important; border-radius:999px !important;
+  border:1px solid var(--et-border) !important; background:var(--et-surface) !important;
+  color:var(--et-text) !important; font-size:.83rem !important; box-shadow:none !important; max-width:100%;
+}
+[data-testid="stPopover"] > button p, [data-testid="stPopoverButton"] p { font-size:.83rem !important; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.st-key-et_topbar { border-bottom:1px solid var(--et-border); padding:0 0 .7rem; margin-bottom:1.1rem; }
+.st-key-et_topbar [data-testid="stSelectbox"] { max-width:340px; }
+.st-key-et_settings_panel [data-testid="stVerticalBlockBorderWrapper"] { padding:.9rem .8rem 1rem !important; border-radius:20px !important; }
+.st-key-et_settings_panel [data-testid="stVerticalBlock"] { gap:.45rem; }
+.et-settings-section { margin:1.05rem 0 .3rem; }
+.user-row { margin:1.5rem 0 .35rem; }
+@media (max-width:1200px) {
+  .block-container { padding:1.2rem 1.2rem 9.5rem; }
+  .st-key-et_topbar [data-testid="stSelectbox"] { max-width:100%; }
+}
+@media (max-width:900px) { .block-container { padding:.9rem .8rem 9.5rem; } .et-hero { margin-top:4vh; } }
+@media (max-width:640px) {
+  .block-container { padding:.9rem .7rem 10rem; }
+  .st-key-et_topbar { margin-bottom:.6rem; }
+  .et-hero { margin:1.6rem auto 1.3rem; }
+}
+
 /* ── Responsividade ────────────────────────────────────────────── */
 @media (max-width:1200px) {
   .block-container { padding:1rem 1rem 9rem; }
@@ -1516,6 +1558,7 @@ with st.sidebar:
         st.session_state["nav_page"] = "chat"
         st.rerun()
 
+    st.markdown('<div class="et-side-divider"></div>', unsafe_allow_html=True)
     st.markdown('<div class="et-side-label">Conversas recentes</div>', unsafe_allow_html=True)
     _archives = list(mem.get("archived_conversations", []))
     _recent = list(reversed(_archives[-6:]))
@@ -1531,6 +1574,7 @@ with st.sidebar:
             if open_archived_conversation(_conv_id):
                 st.rerun()
 
+    st.markdown('<div class="et-side-divider"></div>', unsafe_allow_html=True)
     _storage_kind = st.session_state.get("store_kind", "local")
     _storage_class = "et-status-dot" if _storage_kind == "gist" else ("et-status-dot error" if _storage_kind == "gist-erro" else "et-status-dot warn")
     st.markdown(
@@ -1564,14 +1608,6 @@ _pending_reasoning = st.session_state.pop("_et_pending_reasoning", None)
 if _pending_reasoning in REASONING_LEVELS:
     st.session_state["reasoning_preference"] = _pending_reasoning
     st.session_state[f"main_personalize_{CURRENT_USER_KEY}_reasoning"] = _pending_reasoning
-
-
-def _shift_reasoning(delta):
-    current = st.session_state.get("reasoning_preference", "Automático")
-    index = REASONING_LEVELS.index(current) if current in REASONING_LEVELS else 0
-    st.session_state["_et_pending_reasoning"] = REASONING_LEVELS[
-        max(0, min(len(REASONING_LEVELS) - 1, index + delta))
-    ]
 
 
 def _toggle_personalization_page():
@@ -1877,16 +1913,16 @@ def render_chat_page():
             unsafe_allow_html=True,
         )
         _suggestions = [
-            ("✍️  Escrever um texto · crie, revise ou melhore textos",
+            ("✍️  Escrever um texto",
              "Escreva ou melhore um texto para mim, mantendo meu objetivo e meu tom."),
-            ("💡  Explicar um conceito · ideias complexas de forma simples",
+            ("💡  Explicar um conceito",
              "Explique um conceito de forma simples, com exemplos práticos."),
-            ("⌨️  Ajudar com código · resolva problemas e explique o erro",
+            ("⌨️  Ajudar com código",
              "Ajude com código: explique o erro e proponha uma solução passo a passo."),
-            ("🗺️  Planejar algo · rotinas, viagens e projetos",
+            ("🗺️  Planejar algo",
              "Ajude-me a planejar a semana de forma realista e organizada."),
         ]
-        _sugg_cols = st.columns(2)
+        _sugg_cols = st.columns(2, gap="medium")
         for _idx, (_label, _prompt_text) in enumerate(_suggestions):
             with _sugg_cols[_idx % 2]:
                 with st.container(key=f"et_sugg_{_idx}"):
@@ -2098,15 +2134,8 @@ side_files = []
 
 with _chat_col:
     with st.container(key="et_topbar"):
-        _top_cols = st.columns([0.44, 0.32, 0.24], vertical_alignment="center")
+        _top_cols = st.columns([0.60, 0.40], vertical_alignment="center")
         with _top_cols[0]:
-            st.markdown(
-                f'<div class="et-topbrand"><span class="et-topbrand-crown">{CROWN_SVG}</span>'
-                '<div><div class="et-topbrand-name">Eternity</div>'
-                '<div class="et-topbrand-sub">Sua IA pessoal, do seu jeito</div></div></div>',
-                unsafe_allow_html=True,
-            )
-        with _top_cols[1]:
             _available_header_models = list_available_models(API_KEY)
             _top_model_options = ["Automático"] + [
                 m for m in MODELS if not _available_header_models or m in _available_header_models
@@ -2117,27 +2146,28 @@ with _chat_col:
                 "Modelo da Eternity", _top_model_options, key="preferred_model",
                 format_func=model_label, label_visibility="collapsed",
             )
-        with _top_cols[2]:
-            _reason_cols = st.columns([0.16, 0.16, 0.68], vertical_alignment="center")
-            with _reason_cols[0]:
+        with _top_cols[1]:
+            _action_cols = st.columns([0.58, 0.42], vertical_alignment="center")
+            with _action_cols[0]:
+                _current_reasoning = st.session_state.get("reasoning_preference", "Automático")
+                with st.popover(f"Raciocínio · {_current_reasoning}", use_container_width=True):
+                    st.caption("Quanto esforço a Eternity dedica antes de responder.")
+                    for _level in REASONING_LEVELS:
+                        if st.button(
+                            _level, key=f"et_reason_choice_{_level}", width="stretch",
+                            type="primary" if _level == _current_reasoning else "secondary",
+                        ):
+                            st.session_state["_et_pending_reasoning"] = _level
+                            st.rerun()
+                    st.caption("Automático ajusta o esforço conforme a pergunta e os anexos.")
+            with _action_cols[1]:
                 st.button(
-                    "−", key="et_reason_down", help="Diminuir o esforço de raciocínio",
-                    on_click=_shift_reasoning, args=(-1,),
-                )
-            with _reason_cols[1]:
-                st.button(
-                    "+", key="et_reason_up", help="Aumentar o esforço de raciocínio",
-                    on_click=_shift_reasoning, args=(1,),
-                )
-            with _reason_cols[2]:
-                st.button(
-                    "✕ Fechar" if _show_settings_panel else "⚙ Personalizar",
+                    "✕ Fechar" if _show_settings_panel else "Personalizar",
                     key="main_open_personalization",
                     type="secondary" if _show_settings_panel else "primary",
                     width="stretch",
                     on_click=_toggle_personalization_page,
                 )
-            st.caption(f"Raciocínio · {st.session_state.get('reasoning_preference', 'Automático')}")
 
     if _page == "models":
         render_models_page()
