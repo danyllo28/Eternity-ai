@@ -342,13 +342,6 @@ header[data-testid="stHeader"] { background:transparent; }
   transform:translateY(-1px);
 }
 [class*="st-key-et_sugg_"] button p { font-size:.9rem; }
-[class*="st-key-et_chips_"] button {
-  min-height:34px; border-radius:999px !important; font-size:.82rem !important;
-  padding:.1rem .7rem !important; background:transparent !important;
-  border:1px solid var(--et-border) !important; color:var(--et-muted) !important;
-}
-[class*="st-key-et_chips_"] button:hover { color:var(--et-text) !important; border-color:var(--et-muted) !important; background:var(--et-surface) !important; }
-[class*="st-key-et_chips_"] button p { font-size:.82rem !important; }
 
 /* ── Mensagens ─────────────────────────────────────────────────── */
 .user-row { display:flex; justify-content:flex-end; width:100%; margin:1.05rem 0 .2rem; }
@@ -356,7 +349,7 @@ header[data-testid="stHeader"] { background:transparent; }
   background:linear-gradient(180deg, var(--et-surface-2), var(--et-surface));
   color:var(--et-text); border:1px solid var(--et-border);
   border-radius:18px 18px 6px 18px; padding:.7rem 1rem;
-  max-width:min(680px,86%); text-align:left; line-height:1.68;
+  max-width:min(640px,86%); text-align:left; line-height:1.68;
   font-size:var(--et-text-size); overflow-wrap:anywhere; word-break:break-word;
 }
 .user-bubble img { display:block; max-width:220px; width:100%; border-radius:12px; margin:0 0 8px; }
@@ -421,6 +414,7 @@ hr { border-color:var(--et-border) !important; }
 [data-testid="stBottom"] > div, [data-testid="stBottomBlockContainer"] { background:transparent !important; }
 [data-testid="stBottomBlockContainer"] { padding-bottom:max(.9rem, env(safe-area-inset-bottom)); }
 [data-testid="stChatInput"] {
+  max-width:820px; margin:0 auto;
   background:linear-gradient(180deg, var(--et-surface-2), var(--et-surface)) !important;
   border:1px solid var(--et-border) !important; border-radius:22px !important;
   box-shadow:var(--et-shadow) !important; transition:border-color .18s, box-shadow .18s;
@@ -524,15 +518,14 @@ hr { border-color:var(--et-border) !important; }
 .et-brand-sub { padding:0 .2rem .55rem; }
 .et-side-divider { height:1px; background:var(--et-border); margin:.75rem .2rem; }
 .et-side-label { margin:1rem 0 .35rem; padding:0 .3rem; }
-.et-hero { max-width:680px; margin:8vh auto 2rem; }
+.et-hero { max-width:640px; margin:13vh auto 2rem; }
 .et-hero-crown { margin-bottom:.6rem; }
 .et-hero-crown svg { width:38px; height:34px; }
-.et-hero h1 { font-size:2rem; font-weight:650; }
+.et-hero h1 { font-size:2.15rem; font-weight:650; letter-spacing:-.045em; }
 .et-hero p { margin-top:.7rem; font-size:.98rem; line-height:1.6; }
 [class*="st-key-et_sugg_"] button { min-height:62px; justify-content:flex-start !important; padding:.9rem 1.1rem !important; border-radius:14px !important; background:var(--et-surface) !important; }
 [class*="st-key-et_sugg_"] button > div { width:100%; justify-content:flex-start !important; }
 [class*="st-key-et_sugg_"] button p { text-align:left !important; width:100%; font-size:.92rem; }
-[class*="st-key-et_chips_"] button { margin-right:.1rem; }
 [data-testid="stPopover"] > button, [data-testid="stPopoverButton"] {
   min-height:38px !important; padding:.25rem .85rem !important; border-radius:999px !important;
   border:1px solid var(--et-border) !important; background:var(--et-surface) !important;
@@ -540,7 +533,7 @@ hr { border-color:var(--et-border) !important; }
 }
 [data-testid="stPopover"] > button p, [data-testid="stPopoverButton"] p { font-size:.83rem !important; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 .st-key-et_topbar { border-bottom:1px solid var(--et-border); padding:0 0 .7rem; margin-bottom:1.1rem; }
-.st-key-et_topbar [data-testid="stSelectbox"] { max-width:340px; }
+.st-key-et_topbar [data-testid="stSelectbox"] { max-width:300px; }
 .st-key-et_settings_panel [data-testid="stVerticalBlockBorderWrapper"] { padding:.9rem .8rem 1rem !important; border-radius:20px !important; }
 .st-key-et_settings_panel [data-testid="stVerticalBlock"] { gap:.45rem; }
 .et-settings-section { margin:1.05rem 0 .3rem; }
@@ -1506,8 +1499,7 @@ with st.sidebar:
     st.markdown(
         f'<div class="et-brand"><span class="et-brand-crown">{CROWN_SVG}</span>'
         '<span class="et-brand-name">Eternity</span>'
-        '<span class="et-brand-badge">V9</span></div>'
-        '<div class="et-brand-sub">Sua IA pessoal, do seu jeito</div>',
+        '<span class="et-brand-badge">V9</span></div>',
         unsafe_allow_html=True,
     )
 
@@ -1562,8 +1554,6 @@ with st.sidebar:
     st.markdown('<div class="et-side-label">Conversas recentes</div>', unsafe_allow_html=True)
     _archives = list(mem.get("archived_conversations", []))
     _recent = list(reversed(_archives[-6:]))
-    if not _recent:
-        st.caption("Suas conversas aparecerão aqui.")
     for _idx, _conv in enumerate(_recent):
         _conv_id = _conv.get("id", f"idx{_idx}")
         _conv_title = str(_conv.get("title", "Conversa"))[:30] or "Conversa"
@@ -1908,62 +1898,11 @@ def render_chat_page():
     if not mem["messages"]:
         st.markdown(
             f'<div class="et-hero"><span class="et-hero-crown">{CROWN_SVG}</span>'
-            f'<h1>{greeting_for_now()}, {html.escape(CURRENT_USER.get("username", "usuário"))}!</h1>'
-            "<p>Estou aqui para ajudar. O que você gostaria de fazer hoje?</p></div>",
+            "<h1>Eternity</h1>"
+            f'<p>{greeting_for_now()}, {html.escape(CURRENT_USER.get("username", "usuário"))}. '
+            "Como posso ajudar você hoje?</p></div>",
             unsafe_allow_html=True,
         )
-        _suggestions = [
-            ("✍️  Escrever um texto",
-             "Escreva ou melhore um texto para mim, mantendo meu objetivo e meu tom."),
-            ("💡  Explicar um conceito",
-             "Explique um conceito de forma simples, com exemplos práticos."),
-            ("⌨️  Ajudar com código",
-             "Ajude com código: explique o erro e proponha uma solução passo a passo."),
-            ("🗺️  Planejar algo",
-             "Ajude-me a planejar a semana de forma realista e organizada."),
-        ]
-        _sugg_cols = st.columns(2, gap="medium")
-        for _idx, (_label, _prompt_text) in enumerate(_suggestions):
-            with _sugg_cols[_idx % 2]:
-                with st.container(key=f"et_sugg_{_idx}"):
-                    if st.button(_label, key=f"quick_prompt_{_idx}", width="stretch"):
-                        st.session_state["suggested_prompt"] = _prompt_text
-                        st.rerun()
-
-        _web_on = bool(st.session_state.get("force_web_search", False))
-        _img_on = bool(st.session_state.get("force_image", False))
-        with st.container(key="et_chips", horizontal=True, gap="small", wrap=True):
-            if st.button("🌐 Buscar na web", key="chip_web",
-                         type="primary" if _web_on else "secondary",
-                         help="Ative para a próxima mensagem consultar fontes atuais na web"):
-                st.session_state["force_web_search"] = not _web_on
-                st.rerun()
-            if st.button("🎨 Gerar imagem", key="chip_image",
-                         type="primary" if _img_on else "secondary",
-                         help="Ative para a próxima mensagem gerar uma imagem"):
-                st.session_state["force_image"] = not _img_on
-                st.rerun()
-            if st.button("🖼️ Analisar imagem", key="chip_analyze"):
-                st.toast("Anexe a imagem no campo de mensagem (ícone de clipe) e envie sua pergunta.")
-            if st.button("📄 Ler documento", key="chip_document"):
-                st.toast("Anexe um PDF, TXT, MD, CSV ou JSON no campo de mensagem para eu ler.")
-            with st.popover("⋯ Mais opções", use_container_width=False):
-                if st.button("Pesquisar notícias de hoje", key="chip_more_news", width="stretch"):
-                    st.session_state["suggested_prompt"] = "Pesquise na web as notícias mais importantes de hoje e cite as fontes."
-                    st.rerun()
-                if st.button("Criar uma imagem cinematográfica", key="chip_more_image", width="stretch"):
-                    st.session_state["suggested_prompt"] = "Crie uma imagem cinematográfica de uma paisagem noturna com neblina e luz suave."
-                    st.rerun()
-                if st.button("Revisar um texto longo", key="chip_more_text", width="stretch"):
-                    st.session_state["suggested_prompt"] = "Revise este texto, corrija a gramática e melhore a clareza sem mudar meu estilo."
-                    st.rerun()
-        if _web_on or _img_on:
-            _active_modes = []
-            if _web_on:
-                _active_modes.append("busca na web")
-            if _img_on:
-                _active_modes.append("geração de imagem")
-            st.caption("Modo ativo para a próxima mensagem: " + " e ".join(_active_modes) + ".")
 
     else:
         _head_cols = st.columns([0.7, 0.3], vertical_alignment="center")
@@ -2230,10 +2169,6 @@ with _chat_col:
         text, run_mode = parse_command(original_text, bool(images))
         if images and run_mode == "img":
             run_mode = "auto"  # Com imagem anexada, priorize a análise visual.
-        _force_image = bool(st.session_state.pop("force_image", False))
-        _force_web = bool(st.session_state.pop("force_web_search", False))
-        if _force_image and not images:
-            run_mode = "img"
 
         if text or images or document_sections:
             user_content = text or ("Analise os arquivos anexados." if document_sections else "")
@@ -2301,7 +2236,7 @@ with _chat_col:
                     state = {"ok": False, "error": None, "model": None, "used_web_search": False}
                     effort = resolve_effort(api_text, forced_deep=(run_mode == "deep"))
                     api_mode = "deep" if effort in ("medium", "high", "max") else "fast"
-                    web_search = (wants_web_search(text) or _force_web) and not images
+                    web_search = wants_web_search(text) and not images
                     _models_plan = pick_models(bool(images), effort, web_search=web_search)
                     if mem["facts"] or mem["lessons"]:
                         _memory_meta = f"{len(mem['facts'])} fatos · {len(mem['lessons'])} aprendizados"
