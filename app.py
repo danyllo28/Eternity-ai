@@ -574,6 +574,22 @@ hr { border-color:var(--et-border) !important; }
   .et-hero { margin:1.6rem auto 1.3rem; }
 }
 
+/* ── Login ─────────────────────────────────────────────────────── */
+.et-auth { display:none; }
+[data-testid="stVerticalBlock"]:has(.et-auth) [data-testid="stTabs"] {
+  max-width:440px; margin:.4rem auto 0;
+}
+[data-testid="stVerticalBlock"]:has(.et-auth) [data-testid="stTabs"] [role="tabpanel"] {
+  background:var(--et-surface); border:1px solid var(--et-border);
+  border-top:0; border-radius:0 0 16px 16px; padding:1rem .9rem .4rem;
+}
+[data-testid="stVerticalBlock"]:has(.et-auth) [data-baseweb="tab-list"] {
+  background:var(--et-surface-2); border-radius:12px 12px 0 0; padding:5px 6px 0;
+}
+[data-testid="stVerticalBlock"]:has(.et-auth) [data-testid="stCaptionContainer"] {
+  max-width:440px; margin:.6rem auto 0; text-align:center;
+}
+
 /* ── Composer inline e microanimações ─────────────────────────── */
 .st-key-et_inline_composer { max-width:760px; margin:1.9rem auto 0; }
 .st-key-et_inline_composer [data-testid="stChatInput"] { box-shadow:var(--et-shadow); }
@@ -868,6 +884,7 @@ def show_auth_screen():
     st.markdown("<div style='text-align:center;color:#9B9B9B;margin-bottom:1.2rem'>Entre na sua conta ou crie uma nova para ter sua própria memória.</div>", unsafe_allow_html=True)
     if not use_gist():
         st.warning("Atenção: GITHUB_TOKEN e GIST_ID não estão configurados. As contas e memórias ficarão no armazenamento local temporário e podem sumir quando o Streamlit reiniciar.")
+    st.markdown('<div class="et-auth"></div>', unsafe_allow_html=True)
     login_tab, create_tab = st.tabs(["Entrar", "Criar minha conta"])
     with login_tab:
         with st.form("login_form"):
@@ -1527,6 +1544,22 @@ def delete_archived_conversation(conv_id):
     return True
 
 
+def conversation_group(created_at):
+    try:
+        dt = datetime.fromisoformat(str(created_at).replace("Z", "+00:00"))
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        day = dt.astimezone(timezone.utc).date()
+    except Exception:
+        return "Anteriores"
+    today = datetime.now(timezone.utc).date()
+    if day == today:
+        return "Hoje"
+    if day == today - timedelta(days=1):
+        return "Ontem"
+    return "Anteriores"
+
+
 def open_archived_conversation(conv_id):
     """Restaura uma conversa arquivada sem apagar as demais."""
     archives = list(mem.get("archived_conversations", []))
@@ -1615,8 +1648,13 @@ with st.sidebar:
     st.markdown('<div class="et-side-divider"></div>', unsafe_allow_html=True)
     st.markdown('<div class="et-side-label">Conversas recentes</div>', unsafe_allow_html=True)
     _archives = list(mem.get("archived_conversations", []))
-    _recent = list(reversed(_archives[-6:]))
+    _recent = list(reversed(_archives[-14:]))
+    _last_group = None
     for _idx, _conv in enumerate(_recent):
+        _group = conversation_group(_conv.get("created_at", ""))
+        if _group != _last_group:
+            st.markdown(f'<div class="et-side-label">{_group}</div>', unsafe_allow_html=True)
+            _last_group = _group
         _conv_id = _conv.get("id", f"idx{_idx}")
         _conv_title = str(_conv.get("title", "Conversa"))[:24] or "Conversa"
         _row = st.columns([0.82, 0.18], gap="small", vertical_alignment="center")
