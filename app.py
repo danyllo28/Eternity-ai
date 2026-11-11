@@ -518,7 +518,7 @@ hr { border-color:var(--et-border) !important; }
 .et-brand-sub { padding:0 .2rem .55rem; }
 .et-side-divider { height:1px; background:var(--et-border); margin:.75rem .2rem; }
 .et-side-label { margin:1rem 0 .35rem; padding:0 .3rem; }
-.et-hero { max-width:640px; margin:13vh auto 2rem; }
+.et-hero { max-width:640px; margin:10vh auto 1.4rem; }
 .et-hero-crown { margin-bottom:.6rem; }
 .et-hero-crown svg { width:38px; height:34px; }
 .et-hero h1 { font-size:2.15rem; font-weight:650; letter-spacing:-.045em; }
@@ -544,6 +544,7 @@ hr { border-color:var(--et-border) !important; }
 }
 @media (max-width:900px) { .block-container { padding:.9rem .8rem 9.5rem; } .et-hero { margin-top:4vh; } }
 @media (max-width:820px) {
+  .st-key-et_inline_composer { max-width:100%; margin:1.3rem auto 0; }
   [data-testid="stColumn"]:has(.et-settings-open) {
     position:fixed; inset:0; z-index:999999; width:100%; max-width:100%;
     background:var(--et-bg); overflow-y:auto; margin:0; padding:1rem .85rem 3rem;
@@ -557,6 +558,14 @@ hr { border-color:var(--et-border) !important; }
   .st-key-et_topbar [data-testid="stSelectbox"] { max-width:none; }
   .et-hero { margin:1.6rem auto 1.3rem; }
 }
+
+/* ── Composer inline e microanimações ─────────────────────────── */
+.st-key-et_inline_composer { max-width:760px; margin:1.9rem auto 0; }
+.st-key-et_inline_composer [data-testid="stChatInput"] { box-shadow:var(--et-shadow); }
+.st-key-et_topbar { border-bottom:0 !important; padding:0 !important; margin-bottom:.2rem !important; }
+[data-testid="stBottom"] [data-testid="stCaptionContainer"] { text-align:center; }
+.user-row { animation:et-rise .22s ease-out; }
+@keyframes et-rise { from { opacity:0; transform:translateY(4px); } to { opacity:1; transform:none; } }
 
 /* ── Responsividade ────────────────────────────────────────────── */
 @media (max-width:1200px) {
@@ -1396,6 +1405,18 @@ def render(m):
         st.markdown(m.get("content", ""))
 
 
+def reveal_text(ph, text, delay=0.01, words_per_step=3):
+    """Revela o texto em pequenos blocos quando a API entrega tudo de uma vez."""
+    words = text.split(" ")
+    if len(words) <= words_per_step:
+        ph.markdown(text)
+        return
+    for end in range(words_per_step, len(words) + words_per_step, words_per_step):
+        ph.markdown(" ".join(words[:end]))
+        time.sleep(delay)
+    ph.markdown(text)
+
+
 def stream_to(ph, gen, label):
     """Animação compacta usada ao regenerar/continuar uma resposta."""
     steps = [
@@ -1405,13 +1426,21 @@ def stream_to(ph, gen, label):
     ]
     ph.markdown(stage_loader_html(steps), unsafe_allow_html=True)
     raw = ""
+    paints = 0
+    last_paint = 0.0
     for d in gen:
         raw += d
         view = clean(raw)
-        if view:
-            ph.markdown(view + " ▌")
+        now = time.monotonic()
+        if view and now - last_paint >= 0.03:
+            ph.markdown(view)
+            paints += 1
+            last_paint = now
     view = clean(raw)
-    ph.markdown(view)
+    if paints <= 2 and len(view) > 80:
+        reveal_text(ph, view)
+    else:
+        ph.markdown(view)
     return view
 
 
@@ -1606,10 +1635,12 @@ def _toggle_personalization_page():
 
 
 def stream_with_stages(ph, ops_ph, steps, gen, state):
-    """Mostra a animação da coroa com as etapas reais enquanto a resposta chega."""
+    """Mostra a coroa com as etapas reais e digita a resposta em tempo real."""
     ops_ph.markdown(stage_loader_html(steps), unsafe_allow_html=True)
     raw = ""
+    paints = 0
     writing = False
+    last_paint = 0.0
     for delta in gen:
         if not writing:
             writing = True
@@ -1626,10 +1657,16 @@ def stream_with_stages(ph, ops_ph, steps, gen, state):
             ops_ph.markdown(stage_loader_html(steps), unsafe_allow_html=True)
         raw += delta
         view = clean(raw)
-        if view:
-            ph.markdown(view + " ▌")
+        now = time.monotonic()
+        if view and now - last_paint >= 0.03:
+            ph.markdown(view)
+            paints += 1
+            last_paint = now
     view = clean(raw)
-    ph.markdown(view)
+    if paints <= 2 and len(view) > 80:
+        reveal_text(ph, view)
+    else:
+        ph.markdown(view)
     if view:
         for step in steps:
             if step["status"] in ("active", "pending"):
@@ -1902,6 +1939,14 @@ def render_chat_page():
             "Como posso ajudar você hoje?</p></div>",
             unsafe_allow_html=True,
         )
+        with st.container(key="et_inline_composer"):
+            _inline_prompt = st.chat_input(
+                "Pergunte qualquer coisa à Eternity…",
+                accept_file="multiple",
+                file_type=["png", "jpg", "jpeg", "webp", "pdf", "txt", "md", "csv", "json"],
+            )
+            st.caption("A Eternity pode cometer erros. Confira informações importantes.")
+        return _inline_prompt
 
     else:
         _head_cols = st.columns([0.7, 0.3], vertical_alignment="center")
@@ -2048,18 +2093,23 @@ if _show_settings_panel:
 else:
     _chat_col, _settings_col = st.container(), None
 
-# O campo de mensagem fica fixo na parte inferior, alinhado à largura da conversa.
-with st.bottom:
-    if _show_settings_panel:
-        _composer_col, _composer_spacer = st.columns([2.15, 1], gap="large")
-    else:
-        _composer_col = st.container()
-    with _composer_col:
-        prompt = st.chat_input(
-            "Digite sua mensagem para a Eternity…",
-            accept_file="multiple",
-            file_type=["png", "jpg", "jpeg", "webp", "pdf", "txt", "md", "csv", "json"],
-        )
+# Na tela inicial o campo fica no centro, como no Claude; depois da primeira
+# mensagem ele passa a ficar fixo no rodapé, como no ChatGPT.
+_has_messages = bool(mem["messages"])
+prompt = None
+if _has_messages:
+    with st.bottom:
+        if _show_settings_panel:
+            _composer_col, _composer_spacer = st.columns([2.15, 1], gap="large")
+        else:
+            _composer_col = st.container()
+        with _composer_col:
+            prompt = st.chat_input(
+                "Pergunte qualquer coisa à Eternity…",
+                accept_file="multiple",
+                file_type=["png", "jpg", "jpeg", "webp", "pdf", "txt", "md", "csv", "json"],
+            )
+            st.caption("A Eternity pode cometer erros. Confira informações importantes.")
 
 _page = st.session_state.get("nav_page", "chat")
 side_files = []
@@ -2094,8 +2144,9 @@ with _chat_col:
                     st.caption("Automático ajusta o esforço conforme a pergunta e os anexos.")
             with _action_cols[1]:
                 st.button(
-                    "✕ Fechar" if _show_settings_panel else "Personalizar",
+                    "✕" if _show_settings_panel else "⚙",
                     key="main_open_personalization",
+                    help="Fechar personalização" if _show_settings_panel else "Abrir personalização",
                     type="secondary" if _show_settings_panel else "primary",
                     width="stretch",
                     on_click=_toggle_personalization_page,
@@ -2110,7 +2161,9 @@ with _chat_col:
     elif _page == "files":
         side_files = render_files_page()
     else:
-        render_chat_page()
+        _page_prompt = render_chat_page()
+        if _page_prompt is not None:
+            prompt = _page_prompt
 
     if prompt or st.session_state.get("suggested_prompt"):
         if prompt:
@@ -2286,6 +2339,7 @@ with _chat_col:
 
             if used_side:
                 st.session_state.pend_n += 1
+            if ok:
                 st.rerun()
 
 
