@@ -525,7 +525,20 @@ hr { border-color:var(--et-border) !important; }
 .et-hero p { margin-top:.7rem; font-size:.98rem; line-height:1.6; }
 [class*="st-key-et_sugg_"] button { min-height:62px; justify-content:flex-start !important; padding:.9rem 1.1rem !important; border-radius:14px !important; background:var(--et-surface) !important; }
 [class*="st-key-et_sugg_"] button > div { width:100%; justify-content:flex-start !important; }
-[class*="st-key-et_sugg_"] button p { text-align:left !important; width:100%; font-size:.92rem; }
+[class*="st-key-et_sugg_"] button p { text-align:left !important; width:100%; font-size:.92rem; line-height:1.45; }
+[class*="st-key-et_sugg_"] button [data-testid="stIconMaterial"] { color:var(--et-muted); font-size:19px; }
+[class*="st-key-et_sugg_"] { animation:et-rise .32s ease-out both; }
+[class*="st-key-et_sugg_1"] { animation-delay:.04s; }
+[class*="st-key-et_sugg_2"] { animation-delay:.08s; }
+[class*="st-key-et_sugg_3"] { animation-delay:.12s; }
+[class*="st-key-et_tools"] button {
+  min-height:34px; border-radius:999px !important; font-size:.8rem !important;
+  padding:.15rem .75rem !important; background:transparent !important;
+  border:1px solid var(--et-border) !important; color:var(--et-muted) !important;
+}
+[class*="st-key-et_tools"] button:hover { color:var(--et-text) !important; border-color:var(--et-muted) !important; background:var(--et-surface) !important; }
+[class*="st-key-et_tools"] button p { font-size:.8rem !important; }
+[class*="st-key-et_tools"] { justify-content:center; margin-top:.9rem; }
 [data-testid="stPopover"] > button, [data-testid="stPopoverButton"] {
   min-height:38px !important; padding:.25rem .85rem !important; border-radius:999px !important;
   border:1px solid var(--et-border) !important; background:var(--et-surface) !important;
@@ -545,6 +558,8 @@ hr { border-color:var(--et-border) !important; }
 @media (max-width:900px) { .block-container { padding:.9rem .8rem 9.5rem; } .et-hero { margin-top:4vh; } }
 @media (max-width:820px) {
   .st-key-et_inline_composer { max-width:100%; margin:1.3rem auto 0; }
+  [class*="st-key-et_sugg_"] button { min-height:auto; padding:.8rem .9rem !important; }
+  [class*="st-key-et_sugg_"] button p { font-size:.88rem !important; }
   [data-testid="stColumn"]:has(.et-settings-open) {
     position:fixed; inset:0; z-index:999999; width:100%; max-width:100%;
     background:var(--et-bg); overflow-y:auto; margin:0; padding:1rem .85rem 3rem;
@@ -1493,6 +1508,25 @@ def generate_reply_for_history(history, user_text, placeholder, forced_effort=No
 n = st.session_state.pend_n
 
 
+def rename_archived_conversation(conv_id, new_title):
+    for conv in mem.get("archived_conversations", []):
+        if conv.get("id") == conv_id:
+            conv["title"] = (new_title or "Conversa")[:80]
+            save_memory(mem)
+            return True
+    return False
+
+
+def delete_archived_conversation(conv_id):
+    archives = mem.get("archived_conversations", [])
+    filtered = [c for c in archives if c.get("id") != conv_id]
+    if len(filtered) == len(archives):
+        return False
+    mem["archived_conversations"] = filtered
+    save_memory(mem)
+    return True
+
+
 def open_archived_conversation(conv_id):
     """Restaura uma conversa arquivada sem apagar as demais."""
     archives = list(mem.get("archived_conversations", []))
@@ -1584,13 +1618,27 @@ with st.sidebar:
     _recent = list(reversed(_archives[-6:]))
     for _idx, _conv in enumerate(_recent):
         _conv_id = _conv.get("id", f"idx{_idx}")
-        _conv_title = str(_conv.get("title", "Conversa"))[:30] or "Conversa"
-        if st.button(
-            _conv_title, icon=":material/chat_bubble:",
-            key=f"et_recent_{CURRENT_USER_KEY}_{_conv_id}", width="stretch",
-        ):
-            if open_archived_conversation(_conv_id):
-                st.rerun()
+        _conv_title = str(_conv.get("title", "Conversa"))[:24] or "Conversa"
+        _row = st.columns([0.82, 0.18], gap="small", vertical_alignment="center")
+        with _row[0]:
+            if st.button(
+                _conv_title, icon=":material/chat_bubble:",
+                key=f"et_recent_{CURRENT_USER_KEY}_{_conv_id}", width="stretch",
+            ):
+                if open_archived_conversation(_conv_id):
+                    st.rerun()
+        with _row[1]:
+            with st.popover("⋯", key=f"et_conv_menu_{CURRENT_USER_KEY}_{_conv_id}", width="content"):
+                _new_title = st.text_input(
+                    "Renomear conversa", value=str(_conv.get("title", "")),
+                    key=f"et_rename_{CURRENT_USER_KEY}_{_conv_id}", max_chars=80,
+                )
+                if st.button("Salvar nome", key=f"et_rename_save_{CURRENT_USER_KEY}_{_conv_id}", width="stretch"):
+                    if rename_archived_conversation(_conv_id, _new_title.strip()):
+                        st.rerun()
+                if st.button("Excluir conversa", key=f"et_delete_{CURRENT_USER_KEY}_{_conv_id}", width="stretch"):
+                    if delete_archived_conversation(_conv_id):
+                        st.rerun()
 
     st.markdown('<div class="et-side-divider"></div>', unsafe_allow_html=True)
     _storage_kind = st.session_state.get("store_kind", "local")
@@ -1603,11 +1651,17 @@ with st.sidebar:
         f'{"Gist conectado" if _storage_kind == "gist" else ("Erro no Gist" if _storage_kind == "gist-erro" else "Armazenamento local")}</div></div></div>',
         unsafe_allow_html=True,
     )
-    if st.button("Sair da conta", icon=":material/logout:", key="et_logout", width="stretch"):
-        st.session_state.current_user = None
-        st.session_state.pop("mem", None)
-        st.session_state.pop("loaded_user_key", None)
-        st.rerun()
+    with st.popover("Conta e sessão", icon=":material/account_circle:", width="stretch"):
+        st.caption(f"Conectada como **{CURRENT_USER.get('username', 'usuário')}**.")
+        if st.button("Abrir configurações", key="et_account_settings", width="stretch"):
+            st.session_state["show_personalization_page"] = True
+            st.session_state["nav_page"] = "chat"
+            st.rerun()
+        if st.button("Sair da conta", icon=":material/logout:", key="et_logout", width="stretch"):
+            st.session_state.current_user = None
+            st.session_state.pop("mem", None)
+            st.session_state.pop("loaded_user_key", None)
+            st.rerun()
 
 # ───────────────────────── Área principal ─────────────────────────
 _layout_user_flag = f"v9_layout_initialized_{CURRENT_USER_KEY}"
@@ -1946,6 +2000,55 @@ def render_chat_page():
                 file_type=["png", "jpg", "jpeg", "webp", "pdf", "txt", "md", "csv", "json"],
             )
             st.caption("A Eternity pode cometer erros. Confira informações importantes.")
+
+        _web_on = bool(st.session_state.get("force_web_search", False))
+        _img_on = bool(st.session_state.get("force_image", False))
+        with st.container(key="et_tools", horizontal=True, gap="small", wrap=True):
+            if st.button(
+                "Pesquisar na web", icon=":material/language:", key="tool_web",
+                type="primary" if _web_on else "secondary",
+                help="Ativa a busca na web para a próxima mensagem",
+            ):
+                st.session_state["force_web_search"] = not _web_on
+                st.rerun()
+            if st.button(
+                "Gerar imagem", icon=":material/image:", key="tool_image",
+                type="primary" if _img_on else "secondary",
+                help="Ativa a geração de imagem para a próxima mensagem",
+            ):
+                st.session_state["force_image"] = not _img_on
+                st.rerun()
+            if st.button("Analisar imagem", icon=":material/photo_library:", key="tool_analyze"):
+                st.toast("Anexe a imagem no campo de mensagem (ícone de clipe) e envie sua pergunta.")
+            if st.button("Ler documento", icon=":material/description:", key="tool_document"):
+                st.toast("Anexe um PDF, TXT, MD, CSV ou JSON no campo de mensagem para eu ler.")
+        if _web_on or _img_on:
+            _modes = []
+            if _web_on:
+                _modes.append("busca na web")
+            if _img_on:
+                _modes.append("geração de imagem")
+            st.caption("Modo ativo para a próxima mensagem: " + " e ".join(_modes) + ".")
+
+        _suggestions = [
+            (":material/edit_note:", "Escrever um texto — crie, revise ou melhore seus textos",
+             "Escreva ou melhore um texto para mim, mantendo meu objetivo e meu tom."),
+            (":material/lightbulb:", "Explicar um conceito — entenda ideias complexas de forma simples",
+             "Explique um conceito de forma simples, com exemplos práticos."),
+            (":material/code:", "Ajudar com código — resolva problemas e analise erros",
+             "Ajude com código: explique o erro e proponha uma solução passo a passo."),
+            (":material/map:", "Planejar algo — organize rotinas, viagens e projetos",
+             "Ajude-me a planejar a semana de forma realista e organizada."),
+        ]
+        _sugg_cols = st.columns(2, gap="medium")
+        for _idx, (_icon, _label, _prompt_text) in enumerate(_suggestions):
+            with _sugg_cols[_idx % 2]:
+                with st.container(key=f"et_sugg_{_idx}"):
+                    if st.button(
+                        _label, key=f"quick_prompt_{_idx}", icon=_icon, width="stretch",
+                    ):
+                        st.session_state["suggested_prompt"] = _prompt_text
+                        st.rerun()
         return _inline_prompt
 
     else:
@@ -2215,6 +2318,10 @@ with _chat_col:
         text, run_mode = parse_command(original_text, bool(images))
         if images and run_mode == "img":
             run_mode = "auto"  # Com imagem anexada, priorize a análise visual.
+        _force_image = bool(st.session_state.pop("force_image", False))
+        _force_web = bool(st.session_state.pop("force_web_search", False))
+        if _force_image and not images:
+            run_mode = "img"
 
         if text or images or document_sections:
             user_content = text or ("Analise os arquivos anexados." if document_sections else "")
@@ -2282,7 +2389,7 @@ with _chat_col:
                     state = {"ok": False, "error": None, "model": None, "used_web_search": False}
                     effort = resolve_effort(api_text, forced_deep=(run_mode == "deep"))
                     api_mode = "deep" if effort in ("medium", "high", "max") else "fast"
-                    web_search = wants_web_search(text) and not images
+                    web_search = (wants_web_search(text) or _force_web) and not images
                     _models_plan = pick_models(bool(images), effort, web_search=web_search)
                     if mem["facts"] or mem["lessons"]:
                         _memory_meta = f"{len(mem['facts'])} fatos · {len(mem['lessons'])} aprendizados"
