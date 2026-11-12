@@ -1,14 +1,12 @@
 # Eternity Atelier
 
-O arquivo `atelier.py` adiciona uma experiência de chat alternativa, com uma identidade visual própria da Eternity: interface responsiva, animações suaves, conversas por sessão, modos para conversa/código/escrita/estudo, seleção de modelo, esforço rápido/aprofundado, sugestões de início e exportação em Markdown.
+O arquivo `atelier.py` é uma experiência alternativa de chat para a Eternity, com interface reorganizada: barra lateral limpa, histórico pesquisável, modelos agrupados com descrições, seleção de modelo e esforço perto do campo de mensagem, modos de conversa, sugestões iniciais, animações suaves e exportação em Markdown.
 
 ## Executar
 
 1. Configure `GROQ_API_KEY` em Streamlit → Settings → Secrets (ou como variável de ambiente).
 2. Execute `streamlit run atelier.py`.
 
-O `app.py` original permanece intacto. O Atelier é um ponto de entrada alternativo para testar o redesign sem substituir as funções existentes.
+O `app.py` original permanece intacto. A experiência usa os modelos Groq cadastrados em `MODEL_CATALOG`. Conversas deste protótipo ficam na sessão atual do navegador; não são sincronizadas com o histórico da app principal.
 
-### Sobre explicações
-
-O Atelier pode apresentar uma explicação breve e verificável da resposta, mas não revela transcrições de raciocínio interno privado. O indicador de progresso mostra estados de interface, não uma reprodução do pensamento oculto do modelo.
+A interface mostra etapas de carregamento e pode oferecer uma explicação resumida e verificável da resposta. Ela não revela uma transcrição de raciocínio interno privado.
