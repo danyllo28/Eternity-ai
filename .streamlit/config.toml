@@ -1,12 +1,12 @@
 [theme]
 base = "dark"
-primaryColor = "#EDEFF4"
-backgroundColor = "#0A0B0E"
-secondaryBackgroundColor = "#14171E"
-textColor = "#F2F4F8"
-borderColor = "#242936"
-baseRadius = "medium"
-buttonRadius = "medium"
+primaryColor = "#E7EAF0"
+backgroundColor = "#090A0C"
+secondaryBackgroundColor = "#151820"
+textColor = "#F4F5F7"
+borderColor = "#292D37"
+baseRadius = "large"
+buttonRadius = "large"
 showWidgetBorder = true
 font = "sans-serif"
 
