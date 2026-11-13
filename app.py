@@ -55,7 +55,6 @@ MAX_IMAGES = 3
 MAX_HISTORY = 20
 REFLECT_EVERY = 3
 MEM_FILE = "eternity_memory.json"
-REASONING_LEVELS = ["Automático", "Mínimo", "Baixo", "Médio", "Alto", "Máximo disponível"]
 LANGUAGES = {
     "Português (Brasil)": "português brasileiro",
     "English": "English",
@@ -87,8 +86,7 @@ DENSITY_OPTIONS = ["Compacto", "Confortável"]
 PREFERENCE_DEFAULTS = {
     "theme": "Escuro", "accent": "Branco", "font_size": "Padrão",
     "density": "Confortável", "tone": "Natural e acolhedor",
-    "language": "Português (Brasil)", "reasoning": "Automático",
-    "style": "Equilibrado", "preferred_model": "Automático", "about": "",
+    "language": "Português (Brasil)", "style": "Equilibrado", "about": "",
     "high_contrast": False, "reduce_motion": False, "notifications": True,
 }
 
@@ -103,9 +101,7 @@ def normalize_personalization(value):
     out["density"] = out["density"] if out["density"] in DENSITY_OPTIONS else "Confortável"
     out["tone"] = out["tone"] if out["tone"] in TONE_OPTIONS else "Natural e acolhedor"
     out["language"] = out["language"] if out["language"] in LANGUAGES else "Português (Brasil)"
-    out["reasoning"] = out["reasoning"] if out["reasoning"] in REASONING_LEVELS else "Automático"
     out["style"] = out["style"] if out["style"] in ("Conciso", "Equilibrado", "Detalhado") else "Equilibrado"
-    out["preferred_model"] = out["preferred_model"] if out["preferred_model"] == "Automático" or out["preferred_model"] in MODELS else "Automático"
     out["about"] = str(out.get("about", ""))[:1200]
     out["high_contrast"] = bool(out.get("high_contrast", False))
     out["reduce_motion"] = bool(out.get("reduce_motion", False))
@@ -187,14 +183,52 @@ MODEL_LABELS = {
 }
 
 
-def model_label(model_id):
-    if not model_id or model_id == "Automático":
-        return "Automático · melhor escolha"
-    return MODEL_LABELS.get(model_id, ("Eternity", ""))[0]
+_SOURCE_URL_RE = re.compile(r"https?://[^\s<>\"')\]]+")
 
 
-def model_blurb(model_id):
-    return MODEL_LABELS.get(model_id, ("Eternity", "Modelo de linguagem da Eternity"))[1]
+def extract_sources(text, limit=6):
+    """Extrai os links citados na resposta para mostrar as fontes consultadas."""
+    sources = []
+    seen = set()
+    for raw in _SOURCE_URL_RE.findall(str(text or "")):
+        url = raw.rstrip(".,;:!?*_~")
+        if not url or url in seen:
+            continue
+        seen.add(url)
+        host = urllib.parse.urlparse(url).netloc.removeprefix("www.")
+        if not host:
+            continue
+        sources.append({"url": url, "host": host})
+        if len(sources) >= limit:
+            break
+    return sources
+
+
+def extract_search_results(message, limit=8):
+    """Lê os sites retornados pelo browser_search da Groq (executed_tools)."""
+    sources = []
+    seen = set()
+    tools = message.get("executed_tools") if isinstance(message, dict) else getattr(message, "executed_tools", None)
+    for tool in tools or []:
+        raw = tool.get("search_results") if isinstance(tool, dict) else getattr(tool, "search_results", None)
+        if isinstance(raw, dict):
+            raw = raw.get("results") or raw.get("search_results") or []
+        elif raw is not None and not isinstance(raw, list):
+            raw = getattr(raw, "results", None) or getattr(raw, "search_results", None) or []
+        for item in raw or []:
+            url = item.get("url") if isinstance(item, dict) else getattr(item, "url", None)
+            title = item.get("title") if isinstance(item, dict) else getattr(item, "title", None)
+            if not url or url in seen:
+                continue
+            seen.add(url)
+            sources.append({
+                "url": str(url),
+                "host": urllib.parse.urlparse(str(url)).netloc.removeprefix("www."),
+                "title": str(title or "")[:120],
+            })
+            if len(sources) >= limit:
+                return sources
+    return sources
 
 
 def hide_model_ids(text):
@@ -562,7 +596,7 @@ def reset_personalization_widget_state():
     st.session_state.pop("preferences_loaded_user_key", None)
     suffixes = (
         "theme", "accent", "font_size", "density", "tone", "language", "reasoning",
-        "style", "preferred_model", "custom", "about", "high_contrast", "reduce_motion", "notifications",
+        "style", "custom", "about", "high_contrast", "reduce_motion", "notifications",
     )
     for suffix in suffixes:
         st.session_state.pop(f"main_personalize_{CURRENT_USER_KEY}_{suffix}", None)
@@ -583,8 +617,6 @@ if st.session_state.get("preferences_loaded_user_key") != CURRENT_USER_KEY:
     st.session_state["ui_high_contrast"] = _loaded_prefs["high_contrast"]
     st.session_state["ui_reduce_motion"] = _loaded_prefs["reduce_motion"]
     st.session_state["response_language"] = _loaded_prefs["language"]
-    st.session_state["reasoning_preference"] = _loaded_prefs["reasoning"]
-    st.session_state["preferred_model"] = _loaded_prefs["preferred_model"]
     st.session_state[f"response_style_{CURRENT_USER_KEY}"] = mem.get("response_style", _loaded_prefs["style"])
     st.session_state[f"custom_instructions_{CURRENT_USER_KEY}"] = str(mem.get("custom_instructions", ""))
     st.session_state["preferences_loaded_user_key"] = CURRENT_USER_KEY
@@ -653,9 +685,6 @@ def pick_models(has_images, effort=None, web_search=False):
         filtered = [m for m in order if m in avail]
         if filtered:
             order = filtered
-    preferred = st.session_state.get("preferred_model", "Automático")
-    if not web_search and preferred in order:
-        order = [preferred] + [m for m in order if m != preferred]
     return order
 
 
@@ -677,6 +706,22 @@ def stream_reply(messages, models, mode, state, effort=None, web_search=False):
                     if effort == "max" and model in ("openai/gpt-oss-120b", "openai/gpt-oss-20b"):
                         # Higher response ceiling, still within the model's published limit.
                         max_tokens = 32768
+                    if with_search:
+                        # Sem streaming para receber executed_tools com a lista de sites.
+                        response = client.chat.completions.create(
+                            model=model, messages=messages, stream=False,
+                            temperature=0.65, max_tokens=max_tokens, **params, **extra,
+                        )
+                        choice = response.choices[0]
+                        content = choice.message.content or ""
+                        if content:
+                            state["ok"], state["model"] = True, model
+                            state["used_web_search"] = True
+                            state["sources"] = extract_search_results(choice.message)
+                            for start_index in range(0, len(content), 32):
+                                yield content[start_index:start_index + 32]
+                            return
+                        continue
                     stream = client.chat.completions.create(
                         model=model, messages=messages, stream=True,
                         temperature=0.65 if effort in ("medium", "high", "max") else 0.7,
@@ -944,21 +989,9 @@ def parse_command(text, has_images):
 
 
 def resolve_effort(text, forced_deep=False):
-    """Map the user preference to an effort actually supported by the selected API model."""
-    selected = st.session_state.get("reasoning_preference", "Automático")
+    """Escolhe o esforço automaticamente; "Pensar mais" força o nível alto."""
     if forced_deep:
         return "high"
-    direct = {
-        "Mínimo": "none",
-        "Baixo": "low",
-        "Médio": "medium",
-        "Alto": "high",
-        # Groq's GPT-OSS/Qwen hosted models cap selectable effort at high; this option
-        # uses the strongest available setting and allows a larger completion budget.
-        "Máximo disponível": "max",
-    }
-    if selected in direct:
-        return direct[selected]
     normalized = text.lower()
     complex_markers = (
         "analise", "análise", "compare", "comparar", "planeje", "plano", "passo a passo",
@@ -993,6 +1026,17 @@ def render(m):
             st.caption(m["note"])
         if m.get("content"):
             st.markdown(m["content"])
+        sources = m.get("sources") or []
+        if sources:
+            links = " · ".join(
+                f'<a href="{html.escape(str(item.get("url", "")), quote=True)}" target="_blank" '
+                f'rel="noopener noreferrer">{html.escape(str(item.get("host") or item.get("url", "")))}</a>'
+                for item in sources if item.get("url")
+            )
+            st.markdown(
+                f'<div class="et-sources"><span class="et-sources-label">Fontes consultadas</span>{links}</div>',
+                unsafe_allow_html=True,
+            )
 
 
 def reveal_text(ph, text, delay=0.01, words_per_step=3):
@@ -1005,34 +1049,6 @@ def reveal_text(ph, text, delay=0.01, words_per_step=3):
         ph.markdown(" ".join(words[:end]))
         time.sleep(delay)
     ph.markdown(text)
-
-
-def stream_to(ph, gen, caption="está pensando"):
-    """Animação oficial enquanto a resposta chega, com pintura progressiva."""
-    ph.markdown(thinking_html(caption), unsafe_allow_html=True)
-    raw = ""
-    paints = 0
-    last_paint = 0.0
-    started = False
-    for delta in gen:
-        if not started:
-            started = True
-        raw += delta
-        view = clean(raw)
-        now = time.monotonic()
-        if view and now - last_paint >= 0.035:
-            ph.markdown(view)
-            paints += 1
-            last_paint = now
-    view = clean(raw)
-    if not view:
-        ph.empty()
-        return ""
-    if paints <= 2 and len(view) > 80:
-        reveal_text(ph, view)
-    else:
-        ph.markdown(view)
-    return view
 
 
 def archive_current_conversation():
@@ -1048,43 +1064,6 @@ def archive_current_conversation():
     }
     mem.setdefault("archived_conversations", []).append(snapshot)
     mem["archived_conversations"] = mem["archived_conversations"][-30:]
-
-
-def generate_reply_for_history(history, user_text, placeholder, forced_effort=None):
-    """Regenerate a text or image response from a history ending in a user message."""
-    if CREATOR_TRIGGER.search(user_text or ""):
-        lang_label = st.session_state.get("response_language", "Português (Brasil)")
-        reply = CREATOR_ANSWERS.get(lang_label, "Fui criada pelo Danyllo, meu criador. ✦")
-        placeholder.markdown(reply)
-        return {"role": "assistant", "content": reply}, {"ok": True, "model": "resposta interna", "error": None}
-    if IMG_INTENT.search(user_text or ""):
-        placeholder.markdown(thinking_html("está criando sua imagem"), unsafe_allow_html=True)
-        data, err = generate_image(rewrite_image_prompt(user_text))
-        if data:
-            with placeholder.container():
-                st.image(data, width=480)
-            return {"role": "assistant", "gen": data, "content": "Aqui está sua imagem. ✦"}, {"ok": True, "model": "Pollinations", "error": None}
-        placeholder.empty()
-        return None, {"ok": False, "model": None, "error": err}
-    effort = forced_effort or resolve_effort(user_text)
-    api_mode = "deep" if effort in ("medium", "high", "max") else "fast"
-    web_search = wants_web_search(user_text)
-    state = {"ok": False, "error": None, "model": None, "used_web_search": False}
-    api_msgs = build_api_messages(build_system(api_mode, effort), history, [])
-    if web_search:
-        caption = "está pesquisando na web"
-    elif effort in ("medium", "high", "max"):
-        caption = "está pensando com cuidado"
-    else:
-        caption = "está pensando"
-    reply = stream_to(
-        placeholder,
-        stream_reply(api_msgs, pick_models(False, effort, web_search=web_search), api_mode, state, effort=effort, web_search=web_search),
-        caption,
-    )
-    if state["ok"] and reply:
-        return {"role": "assistant", "content": reply, "model": state.get("model")}, state
-    return None, state
 
 
 # ═══════════════════════════════════════════════════════════════════
@@ -1173,7 +1152,6 @@ def go_to(page):
 
 
 _NAV_ITEMS = (
-    ("models", "Explorar modelos", ":material/auto_awesome:"),
     ("library", "Biblioteca", ":material/library_books:"),
     ("memories", "Memórias", ":material/neurology:"),
     ("files", "Arquivos", ":material/folder_open:"),
@@ -1267,41 +1245,6 @@ def render_sidebar():
 
 
 # ───────────────────────── Páginas ─────────────────────────
-
-
-def render_models_page():
-    available = list_available_models(API_KEY)
-    current = st.session_state.get("preferred_model", "Automático")
-    st.markdown(
-        page_head_html(
-            "Modelos",
-            "Explorar modelos",
-            "Cada modelo da Eternity tem uma personalidade própria. "
-            "Escolha o que combina melhor com a tarefa — ou deixe no automático.",
-        ),
-        unsafe_allow_html=True,
-    )
-
-    def option(model_id, label, blurb, key):
-        active = current == model_id
-        with st.container(key=f"et_card_model_{key}"):
-            badge = ' <span class="et-badge">Em uso</span>' if active else ""
-            st.markdown(
-                f'<div class="et-card-title">{html.escape(label)}{badge}</div>'
-                f'<div class="et-card-text">{html.escape(blurb)}</div>',
-                unsafe_allow_html=True,
-            )
-            if not active:
-                if st.button("Usar este modelo", key=f"et_use_model_{key}", width="stretch"):
-                    st.session_state["_et_pending_model"] = model_id
-                    st.rerun()
-
-    option("Automático", "Automático · melhor escolha",
-           "A Eternity decide o modelo conforme a pergunta, a memória e os anexos.", "auto")
-    for index, model_id in enumerate(m for m in MODELS if not available or m in available):
-        label, blurb = MODEL_LABELS.get(model_id, ("Eternity", "Modelo de linguagem da Eternity"))
-        option(model_id, label, blurb, str(index))
-    st.caption("Os nomes exibidos são a identidade da Eternity; a escolha técnica fica com a aplicação.")
 
 
 def render_library_page():
@@ -1565,102 +1508,139 @@ def render_files_page():
 
 # ───────────────────────── Compositor ─────────────────────────
 _COMPOSER_FILE_TYPES = ["png", "jpg", "jpeg", "webp", "pdf", "txt", "md", "csv", "json"]
-_REASONING_HINTS = {
-    "Automático": "ajusta sozinho",
-    "Mínimo": "mais rápido",
-    "Baixo": "respostas diretas",
-    "Médio": "equilíbrio",
-    "Alto": "análise profunda",
-    "Máximo disponível": "o teto do modelo",
-}
+def _attachment_name(file):
+    return str(getattr(file, "name", "anexo"))
 
 
-def _model_options():
-    available = list_available_models(API_KEY)
-    options = [("Automático", "Automático · melhor escolha",
-                "A Eternity decide conforme a pergunta, a memória e os anexos.")]
-    for model_id in MODELS:
-        if available and model_id not in available:
-            continue
-        label, blurb = MODEL_LABELS.get(model_id, ("Eternity", "Modelo de linguagem da Eternity"))
-        options.append((model_id, label, blurb))
-    return options
+def _attachment_fingerprint(file):
+    try:
+        size = len(file.getvalue())
+    except Exception:
+        size = 0
+    return f"{_attachment_name(file)}:{size}"
+
+
+def _queue_attachment(file):
+    if file is None:
+        return
+    queued = st.session_state.setdefault("composer_files", [])
+    fingerprint = _attachment_fingerprint(file)
+    if any(_attachment_fingerprint(item) == fingerprint for item in queued):
+        return
+    if len(queued) >= 8:
+        st.toast("Limite de 8 anexos por mensagem.")
+        return
+    queued.append(file)
+    st.toast(f"{_attachment_name(file)} pronto para enviar.")
+
+
+def _clear_attachments():
+    st.session_state["composer_files"] = []
+    st.session_state["attach_epoch"] = int(st.session_state.get("attach_epoch", 0)) + 1
 
 
 def _composer_controls(scope):
     web_on = bool(st.session_state.get("force_web_search", False))
     image_on = bool(st.session_state.get("force_image", False))
-    current_model = st.session_state.get("preferred_model", "Automático")
-    current_reasoning = st.session_state.get("reasoning_preference", "Automático")
-    cols = st.columns([0.28, 0.44, 0.28], gap="small", vertical_alignment="center")
+    think_more = bool(st.session_state.get("think_more", False))
+    epoch = int(st.session_state.get("attach_epoch", 0))
+    cols = st.columns([0.34, 0.66], gap="small", vertical_alignment="center")
 
     with cols[0]:
         with st.popover("Ferramentas", icon=":material/add:", width="stretch"):
-            st.markdown('<div class="et-menu-title">Ferramentas</div>', unsafe_allow_html=True)
-            if st.button(
-                "Pesquisar na web", icon=":material/language:",
-                key=f"et_tool_web_{scope}", width="stretch",
-                type="primary" if web_on else "secondary",
-            ):
-                st.session_state["force_web_search"] = not web_on
-                st.rerun()
-            st.markdown(
-                '<div class="et-menu-note">'
-                + ("Busca ativa para a próxima mensagem." if web_on else "Ativa a busca na web para a próxima mensagem.")
-                + "</div>", unsafe_allow_html=True,
-            )
-            if st.button(
-                "Gerar imagem", icon=":material/image:",
-                key=f"et_tool_image_{scope}", width="stretch",
-                type="primary" if image_on else "secondary",
-            ):
-                st.session_state["force_image"] = not image_on
-                st.rerun()
-            st.markdown(
-                '<div class="et-menu-note">'
-                + ("Geração ativa para a próxima mensagem." if image_on else "Ativa a geração de imagem para a próxima mensagem.")
-                + "</div>", unsafe_allow_html=True,
-            )
-            st.markdown(
-                '<div class="et-menu-note">Para analisar uma imagem ou ler um documento, '
-                "anexe o arquivo pelo botão + do campo de mensagem.</div>",
-                unsafe_allow_html=True,
-            )
+            attach_tab, think_tab, tools_tab = st.tabs(["Anexar", "Pensar", "Ferramentas"])
+            with attach_tab:
+                kind = st.selectbox(
+                    "O que anexar", ["Arquivo", "Galeria", "Câmera"],
+                    key=f"et_attach_kind_{scope}", label_visibility="collapsed",
+                )
+                if kind == "Câmera":
+                    camera = st.camera_input(
+                        "Tirar foto agora", key=f"et_attach_cam_{scope}_{epoch}",
+                        label_visibility="collapsed",
+                    )
+                    _queue_attachment(camera)
+                elif kind == "Galeria":
+                    gallery = st.file_uploader(
+                        "Escolher da galeria", type=["png", "jpg", "jpeg", "webp"],
+                        accept_multiple_files=True,
+                        key=f"et_attach_gal_{scope}_{epoch}", label_visibility="collapsed",
+                    )
+                    for file in gallery or []:
+                        _queue_attachment(file)
+                else:
+                    uploaded = st.file_uploader(
+                        "Escolher arquivo", type=_COMPOSER_FILE_TYPES,
+                        accept_multiple_files=True,
+                        key=f"et_attach_file_{scope}_{epoch}", label_visibility="collapsed",
+                    )
+                    for file in uploaded or []:
+                        _queue_attachment(file)
+                st.markdown(
+                    '<div class="et-menu-note">Imagens, PDF, TXT, MD, CSV ou JSON. '
+                    "Até 8 anexos, com no máximo 3 imagens por mensagem.</div>",
+                    unsafe_allow_html=True,
+                )
+                queued_count = len(st.session_state.get("composer_files", []))
+                if queued_count:
+                    st.markdown(
+                        f'<div class="et-menu-note">{queued_count} anexo(s) pronto(s) para enviar.</div>',
+                        unsafe_allow_html=True,
+                    )
+                    if st.button("Limpar anexos", key=f"et_attach_clear_{scope}", width="stretch"):
+                        _clear_attachments()
+                        st.rerun()
+
+            with think_tab:
+                if st.button(
+                    "Pensar mais", icon=":material/psychology:",
+                    key=f"et_think_more_{scope}", width="stretch",
+                    type="primary" if think_more else "secondary",
+                ):
+                    st.session_state["think_more"] = not think_more
+                    st.rerun()
+                st.markdown(
+                    '<div class="et-menu-note">'
+                    + ("Raciocínio profundo e pesquisa ampliada ativos para a próxima mensagem."
+                       if think_more else
+                       "Ativa raciocínio profundo e pesquisa ampliada para a próxima mensagem.")
+                    + "</div>",
+                    unsafe_allow_html=True,
+                )
+
+            with tools_tab:
+                if st.button(
+                    "Pesquisar na web", icon=":material/language:",
+                    key=f"et_tool_web_{scope}", width="stretch",
+                    type="primary" if web_on else "secondary",
+                ):
+                    st.session_state["force_web_search"] = not web_on
+                    st.rerun()
+                st.markdown(
+                    '<div class="et-menu-note">'
+                    + ("Busca ativa para a próxima mensagem." if web_on else "Ativa a busca na web para a próxima mensagem.")
+                    + "</div>", unsafe_allow_html=True,
+                )
+                if st.button(
+                    "Gerar imagem", icon=":material/image:",
+                    key=f"et_tool_image_{scope}", width="stretch",
+                    type="primary" if image_on else "secondary",
+                ):
+                    st.session_state["force_image"] = not image_on
+                    st.rerun()
+                st.markdown(
+                    '<div class="et-menu-note">'
+                    + ("Geração ativa para a próxima mensagem." if image_on else "Ativa a geração de imagem para a próxima mensagem.")
+                    + "</div>",
+                    unsafe_allow_html=True,
+                )
 
     with cols[1]:
-        with st.popover(model_label(current_model), icon=":material/auto_awesome:", width="stretch"):
-            st.markdown('<div class="et-menu-title">Modelo</div>', unsafe_allow_html=True)
-            for model_id, label, blurb in _model_options():
-                slug = "auto" if model_id == "Automático" else re.sub(r"[^a-z0-9]+", "_", model_id.lower())
-                active = current_model == model_id
-                if st.button(
-                    f"{label} · {blurb}", key=f"et_pick_model_{scope}_{slug}",
-                    width="stretch", type="primary" if active else "secondary",
-                ):
-                    st.session_state["_et_pending_model"] = model_id
-                    st.rerun()
-            st.markdown(
-                '<div class="et-menu-note">A lista reflete os modelos liberados para a sua chave da Groq.</div>',
-                unsafe_allow_html=True,
-            )
-
-    with cols[2]:
-        with st.popover(current_reasoning, icon=":material/psychology:", width="stretch"):
-            st.markdown('<div class="et-menu-title">Raciocínio</div>', unsafe_allow_html=True)
-            for level in REASONING_LEVELS:
-                active = current_reasoning == level
-                if st.button(
-                    f"{level} · {_REASONING_HINTS.get(level, '')}",
-                    key=f"et_reason_choice_{scope}_{level}", width="stretch",
-                    type="primary" if active else "secondary",
-                ):
-                    st.session_state["_et_pending_reasoning"] = level
-                    st.rerun()
-            st.markdown(
-                '<div class="et-menu-note">O esforço é aplicado quando o modelo escolhido permite; '
-                "alguns modelos usam o nível mais próximo disponível.</div>",
-                unsafe_allow_html=True,
-            )
+        st.markdown(
+            '<div class="et-model-static"><span class="et-model-name">Eternity</span>'
+            '<span class="et-model-sub">modelo geral</span></div>',
+            unsafe_allow_html=True,
+        )
 
 
 def _composer_block(scope):
@@ -1673,6 +1653,8 @@ def _composer_block(scope):
     with st.container(key="et_composer_controls"):
         _composer_controls(scope)
     chips = []
+    if st.session_state.get("think_more"):
+        chips.append("Pensar mais ativo")
     if st.session_state.get("force_web_search"):
         chips.append("Pesquisa na web ativa")
     if st.session_state.get("force_image"):
@@ -1684,6 +1666,13 @@ def _composer_block(scope):
             + "</div>",
             unsafe_allow_html=True,
         )
+    queued = list(st.session_state.get("composer_files", []))
+    if queued:
+        names = "".join(
+            f'<span class="et-attach-chip">{html.escape(_attachment_name(file))}</span>'
+            for file in queued
+        )
+        st.markdown(f'<div class="et-attach-chips">{names}</div>', unsafe_allow_html=True)
     return prompt
 
 
@@ -1706,144 +1695,7 @@ def _render_suggestions():
 
 def _render_chat_header():
     title = str(mem.get("conversation_title", "Conversa"))
-    cols = st.columns([0.9, 0.1], vertical_alignment="center")
-    with cols[0]:
-        st.markdown(f'<div class="et-chat-title">{html.escape(title)}</div>', unsafe_allow_html=True)
-    with cols[1]:
-        with st.container(key="et_chat_menu"):
-            with st.popover("⋯", help="Opções da conversa", width="content"):
-                title_key = f"conversation_title_{CURRENT_USER_KEY}"
-                if title_key not in st.session_state:
-                    st.session_state[title_key] = title
-                st.text_input(
-                    "Título", key=title_key, max_chars=80, label_visibility="collapsed",
-                )
-                if st.button("Salvar título", key="save_conversation_title", width="stretch"):
-                    mem["conversation_title"] = st.session_state[title_key].strip() or "Nova conversa"
-                    save_memory(mem)
-                    st.toast("Título atualizado.")
-                    st.rerun()
-                if st.button("Nova conversa", icon=":material/edit_square:", key="et_chat_new", width="stretch"):
-                    start_new_conversation()
-                    st.rerun()
-                st.markdown(
-                    '<div class="et-menu-note">As conversas anteriores ficam na Biblioteca.</div>',
-                    unsafe_allow_html=True,
-                )
-
-
-def _user_actions(index, message):
-    st.markdown('<div class="et-menu-title">Copiar</div>', unsafe_allow_html=True)
-    st.code(str(message.get("content", "")), language=None)
-    st.markdown('<div class="et-menu-title">Editar mensagem</div>', unsafe_allow_html=True)
-    st.caption("As mensagens posteriores serão substituídas por uma nova resposta.")
-    if message.get("thumbs") or message.get("note"):
-        st.caption("Esta mensagem tinha um anexo. O texto será editado, mas o arquivo não é reenviado automaticamente.")
-    edit_key = f"edit_message_text_{CURRENT_USER_KEY}_{index}"
-    with st.form(f"edit_message_form_{CURRENT_USER_KEY}_{index}", clear_on_submit=False):
-        st.text_area(
-            "Mensagem", value=str(message.get("content", "")), key=edit_key,
-            max_chars=12000, height=130,
-            placeholder="Escreva a versão corrigida da sua mensagem…",
-        )
-        save_edit = st.form_submit_button("Salvar e regenerar", width="stretch")
-    if save_edit:
-        new_text = st.session_state.get(edit_key, "").strip()
-        if not new_text:
-            st.warning("A mensagem não pode ficar vazia.")
-        else:
-            old_turns = mem.get("turns", 0)
-            edited = {"role": "user", "content": new_text, "display_content": new_text}
-            if message.get("note"):
-                edited["note"] = message.get("note")
-            if message.get("thumbs"):
-                edited["thumbs"] = message.get("thumbs")
-            mem["messages"] = mem["messages"][:index] + [edited]
-            mem["turns"] = old_turns
-            save_memory(mem)
-            placeholder = st.empty()
-            reply, state = generate_reply_for_history(mem["messages"], new_text, placeholder)
-            if reply:
-                mem["messages"].append(reply)
-                save_memory(mem)
-                st.rerun()
-            else:
-                st.error("Não consegui gerar a nova resposta. Sua mensagem editada foi mantida; tente novamente.")
-                if state.get("error"):
-                    st.caption(hide_model_ids(str(state["error"]))[:500])
-
-
-def _assistant_actions(index, message):
-    st.markdown('<div class="et-menu-title">Copiar</div>', unsafe_allow_html=True)
-    st.code(str(message.get("content", "")), language=None)
-    previous_is_user = index > 0 and mem["messages"][index - 1].get("role") == "user"
-    if previous_is_user:
-        st.markdown('<div class="et-menu-title">Refazer</div>', unsafe_allow_html=True)
-        if st.button("Tentar novamente", key=f"retry_{CURRENT_USER_KEY}_{index}", width="stretch"):
-            last_user = mem["messages"][index - 1]
-            history = mem["messages"][:index]
-            mem["messages"] = history
-            save_memory(mem)
-            placeholder = st.empty()
-            reply, state = generate_reply_for_history(history, str(last_user.get("content", "")), placeholder)
-            if reply:
-                mem["messages"].append(reply)
-                save_memory(mem)
-                st.rerun()
-            else:
-                st.error("A nova tentativa falhou. Verifique a conexão e as configurações da IA.")
-                if state.get("error"):
-                    st.caption(hide_model_ids(str(state["error"]))[:500])
-        if st.button("Tentar com esforço alto", key=f"retry_high_{CURRENT_USER_KEY}_{index}", width="stretch"):
-            last_user = mem["messages"][index - 1]
-            history = mem["messages"][:index]
-            mem["messages"] = history
-            save_memory(mem)
-            placeholder = st.empty()
-            reply, state = generate_reply_for_history(
-                history, str(last_user.get("content", "")), placeholder, forced_effort="high"
-            )
-            if reply:
-                mem["messages"].append(reply)
-                save_memory(mem)
-                st.rerun()
-            else:
-                st.error("Não consegui regenerar com esforço alto.")
-                if state.get("error"):
-                    st.caption(hide_model_ids(str(state["error"]))[:500])
-    if index == len(mem["messages"]) - 1:
-        if st.button("Continuar resposta", key=f"continue_{CURRENT_USER_KEY}_{index}", width="stretch"):
-            effort = resolve_effort(str(message.get("content", "")))
-            api_mode = "deep" if effort in ("medium", "high", "max") else "fast"
-            api_msgs = build_api_messages(build_system(api_mode, effort), mem["messages"][:index + 1], [])
-            api_msgs.append({"role": "user", "content": "Continue a resposta anterior a partir do ponto em que parou. Evite repetir o que já foi dito."})
-            state = {"ok": False, "error": None, "model": None, "used_web_search": False}
-            placeholder = st.empty()
-            continuation = stream_to(
-                placeholder,
-                stream_reply(api_msgs, pick_models(False, effort), api_mode, state, effort=effort),
-                "está continuando a resposta",
-            )
-            if state["ok"] and continuation:
-                mem["messages"][index]["content"] = str(mem["messages"][index].get("content", "")) + "\n\n" + continuation
-                save_memory(mem)
-                st.rerun()
-            else:
-                st.error("Não consegui continuar a resposta.")
-                if state.get("error"):
-                    st.caption(hide_model_ids(str(state["error"]))[:500])
-    st.markdown('<div class="et-menu-title">Avaliar</div>', unsafe_allow_html=True)
-    feedback_cols = st.columns(2)
-    with feedback_cols[0]:
-        if st.button("Útil", icon=":material/thumb_up:", key=f"feedback_up_{CURRENT_USER_KEY}_{index}", width="stretch"):
-            mem["messages"][index]["feedback"] = "útil"
-            save_memory(mem)
-            st.rerun()
-    with feedback_cols[1]:
-        if st.button("Não útil", icon=":material/thumb_down:", key=f"feedback_down_{CURRENT_USER_KEY}_{index}", width="stretch"):
-            mem["messages"][index]["feedback"] = "não útil"
-            save_memory(mem)
-            st.rerun()
+    st.markdown(f'<div class="et-chat-title">{html.escape(title)}</div>', unsafe_allow_html=True)
 
 
 def _render_messages():
@@ -1856,18 +1708,6 @@ def _render_messages():
             continue
         with st.container(key=f"et_msg_{index}"):
             render(message)
-            if message.get("role") == "user":
-                action_cols = st.columns([0.9, 0.1], vertical_alignment="center")
-                action_slot = action_cols[1]
-            else:
-                action_cols = st.columns([0.08, 0.92], vertical_alignment="center")
-                action_slot = action_cols[0]
-            with action_slot:
-                with st.popover("⋯", key=f"et_msgact_{index}", help="Ações da mensagem", width="content"):
-                    if message.get("role") == "user":
-                        _user_actions(index, message)
-                    else:
-                        _assistant_actions(index, message)
 
 
 def render_chat_page():
@@ -1916,9 +1756,7 @@ def render_settings_page():
         "density": prefs.get("density", st.session_state.get("ui_density", "Confortável")),
         "tone": prefs.get("tone", "Natural e acolhedor"),
         "language": prefs.get("language", st.session_state.get("response_language", "Português (Brasil)")),
-        "reasoning": prefs.get("reasoning", st.session_state.get("reasoning_preference", "Automático")),
         "style": prefs.get("style", mem.get("response_style", "Equilibrado")),
-        "preferred_model": prefs.get("preferred_model", st.session_state.get("preferred_model", "Automático")),
         "custom": mem.get("custom_instructions", ""),
         "about": prefs.get("about", ""),
         "high_contrast": prefs.get("high_contrast", st.session_state.get("ui_high_contrast", False)),
@@ -1980,25 +1818,6 @@ def render_settings_page():
             "Extensão das respostas", ["Conciso", "Equilibrado", "Detalhado"],
             key=prefix + "style", label_visibility="collapsed",
         )
-        st.markdown('<div class="et-section-label">Esforço de raciocínio</div>', unsafe_allow_html=True)
-        st.selectbox(
-            "Esforço de raciocínio", REASONING_LEVELS,
-            key=prefix + "reasoning", label_visibility="collapsed",
-            help="O esforço é aplicado quando o modelo escolhido permite.",
-        )
-        st.markdown('<div class="et-section-label">Modelo preferido</div>', unsafe_allow_html=True)
-        model_options = _model_options()
-        option_values = [item[0] for item in model_options]
-        saved_model = st.session_state.get(prefix + "preferred_model", "Automático")
-        if saved_model not in option_values:
-            st.session_state[prefix + "preferred_model"] = "Automático"
-        st.selectbox(
-            "Modelo preferido", option_values,
-            key=prefix + "preferred_model", format_func=model_label,
-            label_visibility="collapsed",
-            help="Automático tenta os modelos disponíveis em ordem e usa alternativas se algum falhar.",
-        )
-
     with personality:
         st.markdown('<div class="et-section-label">Instruções personalizadas</div>', unsafe_allow_html=True)
         st.text_area(
@@ -2075,8 +1894,6 @@ def render_settings_page():
         st.session_state["ui_high_contrast"] = bool(st.session_state.get(prefix + "high_contrast", False))
         st.session_state["ui_reduce_motion"] = bool(st.session_state.get(prefix + "reduce_motion", False))
         st.session_state["response_language"] = st.session_state.get(prefix + "language", "Português (Brasil)")
-        st.session_state["reasoning_preference"] = st.session_state.get(prefix + "reasoning", "Automático")
-        st.session_state["preferred_model"] = st.session_state.get(prefix + "preferred_model", "Automático")
         st.session_state[f"custom_instructions_{CURRENT_USER_KEY}"] = st.session_state.get(prefix + "custom", "")
         st.session_state[f"response_style_{CURRENT_USER_KEY}"] = st.session_state.get(prefix + "style", "Equilibrado")
 
@@ -2092,9 +1909,7 @@ def render_settings_page():
             "density": st.session_state[prefix + "density"],
             "tone": st.session_state[prefix + "tone"],
             "language": st.session_state[prefix + "language"],
-            "reasoning": st.session_state[prefix + "reasoning"],
             "style": st.session_state[prefix + "style"],
-            "preferred_model": st.session_state[prefix + "preferred_model"],
             "about": st.session_state[prefix + "about"].strip()[:1200],
             "high_contrast": st.session_state[prefix + "high_contrast"],
             "reduce_motion": st.session_state[prefix + "reduce_motion"],
@@ -2109,9 +1924,9 @@ def render_settings_page():
             st.error("Não consegui salvar as preferências. Confira a conexão com o armazenamento.")
 
 # ───────────────────────── Geração e layout principal ─────────────────────────
-def stream_with_stages(ph, ops_ph, gen, state, caption="está pensando"):
+def stream_with_stages(ph, ops_ph, gen, state, caption="está pensando", searching=False):
     """Mostra a animação oficial e entrega o texto progressivamente."""
-    ops_ph.markdown(thinking_html(caption), unsafe_allow_html=True)
+    ops_ph.markdown(thinking_html(caption, searching=searching), unsafe_allow_html=True)
     raw = ""
     paints = 0
     last_paint = 0.0
@@ -2120,7 +1935,7 @@ def stream_with_stages(ph, ops_ph, gen, state, caption="está pensando"):
     for delta in gen:
         if writing_since is None:
             writing_since = time.monotonic()
-            ops_ph.markdown(thinking_html(caption, ending=True), unsafe_allow_html=True)
+            ops_ph.markdown(thinking_html(caption, ending=True, searching=searching), unsafe_allow_html=True)
         raw += delta
         view = clean(raw)
         now = time.monotonic()
@@ -2144,20 +1959,6 @@ def stream_with_stages(ph, ops_ph, gen, state, caption="está pensando"):
     return view
 
 
-# Ajustes escolhidos em menus de outra área entram em vigor antes de qualquer widget.
-_pending_model = st.session_state.pop("_et_pending_model", None)
-if _pending_model is not None:
-    st.session_state["preferred_model"] = _pending_model
-    _settings_model_key = f"main_personalize_{CURRENT_USER_KEY}_preferred_model"
-    if _settings_model_key in st.session_state:
-        st.session_state[_settings_model_key] = _pending_model
-_pending_reasoning = st.session_state.pop("_et_pending_reasoning", None)
-if _pending_reasoning in REASONING_LEVELS:
-    st.session_state["reasoning_preference"] = _pending_reasoning
-    _settings_reason_key = f"main_personalize_{CURRENT_USER_KEY}_reasoning"
-    if _settings_reason_key in st.session_state:
-        st.session_state[_settings_reason_key] = _pending_reasoning
-
 st.session_state.setdefault("nav_page", "chat")
 _page = st.session_state.get("nav_page", "chat")
 
@@ -2180,9 +1981,7 @@ if _page in ("chat", "files") and (_has_messages or _page == "files"):
             unsafe_allow_html=True,
         )
 
-if _page == "models":
-    render_models_page()
-elif _page == "library":
+if _page == "library":
     render_library_page()
 elif _page == "memories":
     render_memories_page()
@@ -2201,7 +2000,8 @@ if prompt or st.session_state.get("suggested_prompt"):
         text = (prompt.text or "").strip()
     else:
         text = st.session_state.pop("suggested_prompt", "").strip()
-    files = (list(prompt.files or []) if prompt else []) + side_files
+    queued_files = list(st.session_state.get("composer_files", []))
+    files = (list(prompt.files or []) if prompt else []) + queued_files + side_files
     used_side = bool(side_files)
     st.session_state["nav_page"] = "chat"
 
@@ -2247,6 +2047,7 @@ if prompt or st.session_state.get("suggested_prompt"):
         run_mode = "auto"  # Com imagem anexada, priorize a análise visual.
     force_image = bool(st.session_state.pop("force_image", False))
     force_web = bool(st.session_state.pop("force_web_search", False))
+    think_more = bool(st.session_state.pop("think_more", False))
     if force_image and not images:
         run_mode = "img"
 
@@ -2302,12 +2103,14 @@ if prompt or st.session_state.get("suggested_prompt"):
                 ok = True
             else:
                 state = {"ok": False, "error": None, "model": None, "used_web_search": False}
-                effort = resolve_effort(api_text, forced_deep=(run_mode == "deep"))
+                effort = resolve_effort(api_text, forced_deep=(run_mode == "deep" or think_more))
                 api_mode = "deep" if effort in ("medium", "high", "max") else "fast"
-                web_search = (wants_web_search(text) or force_web) and not images
+                web_search = (wants_web_search(text) or force_web or think_more) and not images
                 models_plan = pick_models(bool(images), effort, web_search=web_search)
                 api_msgs = build_api_messages(build_system(api_mode, effort), mem["messages"], images)
-                if web_search:
+                if web_search and think_more:
+                    caption = "está pesquisando e pensando mais"
+                elif web_search:
                     caption = "está pesquisando na web"
                 elif effort in ("medium", "high", "max"):
                     caption = "está pensando com cuidado"
@@ -2319,11 +2122,15 @@ if prompt or st.session_state.get("suggested_prompt"):
                         api_msgs, models_plan, api_mode, state,
                         effort=effort, web_search=web_search,
                     ),
-                    state, caption,
+                    state, caption, searching=web_search,
                 )
                 if state["ok"] and reply:
-                    mem["messages"].append({"role": "assistant", "content": reply})
-                    st.session_state.model_used = state["model"]
+                    reply_msg = {"role": "assistant", "content": reply}
+                    if state.get("used_web_search"):
+                        found_sources = state.get("sources") or extract_sources(reply)
+                        if found_sources:
+                            reply_msg["sources"] = found_sources
+                    mem["messages"].append(reply_msg)
                     ok = True
                 else:
                     ops_ph.empty()
@@ -2355,4 +2162,6 @@ if prompt or st.session_state.get("suggested_prompt"):
         if used_side:
             st.session_state.pend_n += 1
         if ok:
+            st.session_state["composer_files"] = []
+            st.session_state["attach_epoch"] = int(st.session_state.get("attach_epoch", 0)) + 1
             st.rerun()
