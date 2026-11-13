@@ -498,6 +498,7 @@ button:focus-visible, textarea:focus-visible, input:focus-visible, [role="tab"]:
   background: var(--et-surface-2) !important; color: var(--et-text) !important;
 }
 [class*="st-key-et_composer_controls"] [data-testid="stIconMaterial"] { font-size: 17px; }
+[data-testid="stPopoverBody"] [data-testid="stTab"] { font-size: .76rem !important; margin-right: .65rem !important; padding: .35rem .05rem !important; }
 .et-active-tools { display: flex; gap: .5rem; padding: .1rem .55rem .15rem; flex-wrap: wrap; }
 .et-tool-chip { font-size: .68rem; color: var(--et-text); background: var(--et-surface-2); border: 1px solid var(--et-border); border-radius: 999px; padding: .05rem .45rem; }
 .et-attach-chips { display: flex; gap: .35rem; flex-wrap: wrap; padding: .1rem .55rem .35rem; }

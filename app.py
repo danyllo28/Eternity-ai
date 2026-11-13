@@ -1548,7 +1548,7 @@ def _composer_controls(scope):
 
     with cols[0]:
         with st.popover("Ferramentas", icon=":material/add:", width="stretch"):
-            attach_tab, think_tab, tools_tab = st.tabs(["Anexar", "Pensar", "Ferramentas"])
+            attach_tab, think_tab, tools_tab = st.tabs(["Anexar", "Pensar mais", "Ferramentas"])
             with attach_tab:
                 kind = st.selectbox(
                     "O que anexar", ["Arquivo", "Galeria", "Câmera"],
