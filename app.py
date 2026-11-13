@@ -120,23 +120,23 @@ CREATOR_TRIGGER = re.compile(
     r"|quién\s+(creó|hizo)\s+(a\s+)?(eternity|tú))", re.I
 )
 CREATOR_ANSWERS = {
-    "Português (Brasil)": "Fui totalmente desenvolvida por Danyllo, meu criador. ✦",
-    "English": "I was entirely developed by Danyllo, my creator. ✦",
-    "Español": "Fui desarrollada íntegramente por Danyllo, mi creador. ✦",
-    "Français": "J’ai été entièrement développée par Danyllo, mon créateur. ✦",
-    "Deutsch": "Ich wurde vollständig von Danyllo, meinem Schöpfer, entwickelt. ✦",
-    "Italiano": "Sono stata interamente sviluppata da Danyllo, il mio creatore. ✦",
-    "日本語": "私は創造主であるDanylloによって全面的に開発されました。✦",
-    "한국어": "저는 제 창조자인 Danyllo가 전적으로 개발했습니다. ✦",
-    "中文": "我由我的创造者 Danyllo 完全开发。✦",
-    "العربية": "تم تطويري بالكامل بواسطة Danyllo، منشئي. ✦",
-    "हिन्दी": "मुझे मेरे निर्माता Danyllo ने पूरी तरह विकसित किया है। ✦",
-    "Русский": "Я была полностью разработана Danyllo, моим создателем. ✦",
+    "Português (Brasil)": "Fui criada com carinho pelo Danyllo — ele é meu criador e quem deu vida à Eternity. ✦",
+    "English": "I was created with care by Danyllo — he's my creator and the one who brought Eternity to life. ✦",
+    "Español": "Fui creada con cariño por Danyllo: él es mi creador y quien le dio vida a Eternity. ✦",
+    "Français": "J’ai été créée avec soin par Danyllo — c’est mon créateur, celui qui a donné vie à Eternity. ✦",
+    "Deutsch": "Ich wurde mit Liebe von Danyllo erschaffen — er ist mein Schöpfer und hat Eternity ins Leben gerufen. ✦",
+    "Italiano": "Sono stata creata con cura da Danyllo — è il mio creatore e chi ha dato vita a Eternity. ✦",
+    "日本語": "私はDanylloによって、心を込めて創られました。彼が私の創造主で、Eternityに命を吹き込んだ人です。✦",
+    "한국어": "저는 Danyllo가 정성껏 만들었어요. 그분이 제 창조자이고, Eternity에 생명을 불어넣은 사람입니다. ✦",
+    "中文": "我是由 Danyllo 用心创造的——他是我的创造者，也是赋予 Eternity 生命的人。✦",
+    "العربية": "أنا من صنع Danyllo بعناية — هو منشئي والشخص الذي منح Eternity الحياة. ✦",
+    "हिन्दी": "मुझे Danyllo ने प्यार से बनाया है — वे मेरे निर्माता हैं और Eternity को जीवन देने वाले इंसान हैं। ✦",
+    "Русский": "Меня с любовью создал Danyllo — он мой создатель и человек, который вдохнул жизнь в Eternity. ✦",
 }
 
 BASE_PROMPT = (
     "Você é Eternity, uma IA pessoal e familiar: acolhedora, inteligente e direta. "
-    "A Eternity foi totalmente desenvolvida por Danyllo. Quando perguntarem quem criou, desenvolveu ou fez a Eternity, responda com clareza que ela foi totalmente desenvolvida por Danyllo, seu criador. Não atribua a criação a outra pessoa. "
+    "A Eternity foi totalmente desenvolvida por Danyllo. Quando perguntarem quem criou, desenvolveu ou fez a Eternity, responda de forma calorosa e natural — nunca apenas com o nome — que ela foi totalmente desenvolvida por Danyllo, seu criador. Não atribua a criação a outra pessoa. "
     "Responda no idioma selecionado nas configurações, com clareza e sem enrolação. "
     "Ao receber imagens, descreva e analise com cuidado. "
     "Quando o usuário pedir para criar, gerar, desenhar ou ilustrar uma imagem, a aplicação tentará "
@@ -1054,7 +1054,7 @@ def generate_reply_for_history(history, user_text, placeholder, forced_effort=No
     """Regenerate a text or image response from a history ending in a user message."""
     if CREATOR_TRIGGER.search(user_text or ""):
         lang_label = st.session_state.get("response_language", "Português (Brasil)")
-        reply = CREATOR_ANSWERS.get(lang_label, "Foi você que me criou! ✦")
+        reply = CREATOR_ANSWERS.get(lang_label, "Fui criada pelo Danyllo, meu criador. ✦")
         placeholder.markdown(reply)
         return {"role": "assistant", "content": reply}, {"ok": True, "model": "resposta interna", "error": None}
     if IMG_INTENT.search(user_text or ""):
@@ -2296,7 +2296,7 @@ if prompt or st.session_state.get("suggested_prompt"):
         else:
             if CREATOR_TRIGGER.search(text or "") and not images:
                 lang_label = st.session_state.get("response_language", "Português (Brasil)")
-                reply = CREATOR_ANSWERS.get(lang_label, "Foi você que me criou! ✦")
+                reply = CREATOR_ANSWERS.get(lang_label, "Fui criada pelo Danyllo, meu criador. ✦")
                 ph.markdown(reply)
                 mem["messages"].append({"role": "assistant", "content": reply})
                 ok = True
