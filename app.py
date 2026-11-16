@@ -324,6 +324,7 @@ def default_memory():
         "messages": [], "facts": [], "lessons": [], "turns": 0,
         "auto_learning": True, "custom_instructions": "",
         "response_style": "Equilibrado", "conversation_title": "Nova conversa",
+        "title_generated": False,
         "personalization": dict(PREFERENCE_DEFAULTS),
         "archived_conversations": [],
     }
@@ -536,6 +537,9 @@ def load_memory():
         # Older versions kept this setting outside the personalization object.
         mem["personalization"]["style"] = mem["response_style"]
         mem["conversation_title"] = str(data.get("conversation_title", "Nova conversa"))[:80]
+        mem["title_generated"] = bool(data.get(
+            "title_generated", mem["conversation_title"] not in ("", "Nova conversa")
+        ))
         mem["archived_conversations"] = [c for c in data.get("archived_conversations", []) if isinstance(c, dict) and isinstance(c.get("messages"), list)][-30:]
     kind = "local"
     if use_gist():
@@ -580,6 +584,7 @@ def serializable(mem):
         "response_style": mem.get("response_style", "Equilibrado"),
         "personalization": normalize_personalization(mem.get("personalization", {})),
         "conversation_title": str(mem.get("conversation_title", "Nova conversa"))[:80],
+        "title_generated": bool(mem.get("title_generated", False)),
         "archived_conversations": archives,
     }
     while len(json.dumps(out, ensure_ascii=False)) > 600_000:
@@ -1166,6 +1171,83 @@ def archive_current_conversation():
     mem["archived_conversations"] = mem["archived_conversations"][-30:]
 
 
+def _clean_generated_title(raw):
+    text = str(raw or "").splitlines()[0] if str(raw or "").strip() else ""
+    text = re.sub(r"^(t[ií]tulo|title)\s*:\s*", "", text, flags=re.I)
+    text = text.strip(" \t\"'“”‘’`*#_-")
+    text = re.sub(r"\s+", " ", text)
+    text = re.sub(r"[.!?;:]+$", "", text).strip()
+    if not text:
+        return ""
+    if len(text.split()) > 9:
+        text = " ".join(text.split()[:8])
+    if text.casefold() in {
+        "oi", "olá", "ola", "nova conversa", "bom dia", "boa tarde", "boa noite",
+    }:
+        return ""
+    return text[:60]
+
+
+def _fallback_title():
+    """Título de reserva quando o modelo de título não está disponível."""
+    greetings = re.compile(r"^(oi|ol[aá]|bom dia|boa tarde|boa noite|ei|hey)[!,.\s]+", re.I)
+    for message in reversed(mem.get("messages", [])):
+        if message.get("role") != "user":
+            continue
+        raw = re.sub(r"\s+", " ", str(message.get("display_content", message.get("content", "")))).strip()
+        raw = greetings.sub("", raw)
+        words = raw.split()
+        if len(words) >= 4:
+            phrase = " ".join(words[:7]).strip(" .,!?:;")
+            return phrase[:1].upper() + phrase[1:]
+    for message in mem.get("messages", []):
+        if message.get("role") != "assistant":
+            continue
+        content = str(message.get("content", "")).strip()
+        if not content:
+            continue
+        sentence = re.split(r"(?<=[.!?])\s+", content)[0]
+        words = sentence.split()
+        if len(words) >= 4:
+            phrase = " ".join(words[:7]).strip(" .,!?:;")
+            return phrase[:1].upper() + phrase[1:]
+    return "Uma Conversa para Lembrar"
+
+
+def maybe_generate_title():
+    """Cria um título criativo só depois que a conversa tem contexto suficiente."""
+    if mem.get("title_generated") or int(mem.get("turns", 0)) < 3:
+        return
+    transcript = []
+    for message in mem.get("messages", [])[-6:]:
+        content = str(message.get("display_content", message.get("content", ""))).strip()
+        if not content:
+            continue
+        role = "Usuário" if message.get("role") == "user" else "Eternity"
+        transcript.append(f"{role}: {content[:400]}")
+    if len(transcript) < 2:
+        return
+    title = ""
+    try:
+        raw = chat_once(
+            [{"role": "system", "content": "Crie um título curto e criativo para esta conversa, em "
+                                           "português do Brasil. Use de 3 a 6 palavras, capture o "
+                                           "assunto real e desperte curiosidade. Não use aspas, ponto "
+                                           "final, emojis, 'Conversa sobre' nem saudações. Responda "
+                                           "SOMENTE com o título."},
+             {"role": "user", "content": "\n".join(transcript)}],
+            pick_models(False), max_tokens=50,
+        )
+        title = _clean_generated_title(raw)
+    except Exception:
+        title = ""
+    if not title:
+        title = _fallback_title()
+    if title:
+        mem["conversation_title"] = title[:60]
+        mem["title_generated"] = True
+
+
 # ═══════════════════════════════════════════════════════════════════
 #  Nova interface — conversas, barra lateral e páginas
 # ═══════════════════════════════════════════════════════════════════
@@ -1222,6 +1304,7 @@ def open_archived_conversation(conv_id):
     ]
     mem["messages"] = copy.deepcopy(chosen.get("messages", []))
     mem["conversation_title"] = str(chosen.get("title", "Conversa anterior"))[:80]
+    mem["title_generated"] = True
     st.session_state[f"conversation_title_{CURRENT_USER_KEY}"] = mem["conversation_title"]
     save_memory(mem)
     st.session_state["nav_page"] = "chat"
@@ -1231,7 +1314,9 @@ def open_archived_conversation(conv_id):
 def start_new_conversation():
     archive_current_conversation()
     mem["messages"] = []
+    mem["turns"] = 0
     mem["conversation_title"] = "Nova conversa"
+    mem["title_generated"] = False
     st.session_state[f"conversation_title_{CURRENT_USER_KEY}"] = "Nova conversa"
     save_memory(mem)
     st.session_state["nav_page"] = "chat"
@@ -1588,6 +1673,9 @@ def render_memories_page():
             restored["personalization"] = normalize_personalization(source.get("personalization", {}))
             restored["personalization"]["style"] = restored["response_style"]
             restored["conversation_title"] = str(source.get("conversation_title", "Nova conversa"))[:80]
+            restored["title_generated"] = bool(source.get(
+                "title_generated", restored["conversation_title"] not in ("", "Nova conversa")
+            ))
             restored["archived_conversations"] = [
                 c for c in source.get("archived_conversations", [])
                 if isinstance(c, dict) and isinstance(c.get("messages"), list)
@@ -2198,7 +2286,9 @@ elif _page == "files":
 elif _page == "settings":
     render_settings_page()
 else:
-    prompt, welcome_holder = render_chat_page()
+    page_prompt, welcome_holder = render_chat_page()
+    if page_prompt is not None:
+        prompt = page_prompt
 
 if prompt or st.session_state.get("suggested_prompt"):
     if welcome_holder is not None:
@@ -2269,10 +2359,6 @@ if prompt or st.session_state.get("suggested_prompt"):
             # Texto integral do documento fica apenas na sessão, nunca no Gist.
             user_msg["api_content"] = api_text
         mem["messages"].append(user_msg)
-        if mem.get("conversation_title", "Nova conversa") == "Nova conversa":
-            title_seed = re.sub(r"\s+", " ", original_text).strip()
-            if title_seed:
-                mem["conversation_title"] = title_seed[:52] + ("…" if len(title_seed) > 52 else "")
         mem["turns"] += 1
         render(user_msg)
         ops_ph = st.empty()
@@ -2364,6 +2450,7 @@ if prompt or st.session_state.get("suggested_prompt"):
                             st.code(hide_model_ids(str(state["error"])))
 
         if ok:
+            maybe_generate_title()
             st.session_state["scroll_after_render"] = True
             save_memory(mem)
             explicit_learning_request = bool(LEARN_TRIGGER.search(text or ""))
