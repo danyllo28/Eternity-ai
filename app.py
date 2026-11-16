@@ -1,4 +1,5 @@
 import base64
+import concurrent.futures
 import copy
 import hmac
 import html
@@ -20,13 +21,13 @@ from PIL import Image, ImageOps
 from eternity_ui.brand import auth_hero_html, brand_mark_html, crown_svg, welcome_html
 from eternity_ui.components import empty_state_html, page_head_html, user_message_html
 from eternity_ui.theme import apply_theme
-from eternity_ui.thinking import thinking_html
+from eternity_ui.thinking import image_loading_html, thinking_html
 
 st.set_page_config(
     page_title="Eternity",
     page_icon="♕",
     layout="wide",
-    initial_sidebar_state="auto",
+    initial_sidebar_state="expanded",
 )
 
 # ───────────────────────── Modelos ─────────────────────────
@@ -720,6 +721,7 @@ def stream_reply(messages, models, mode, state, effort=None, web_search=False):
                             state["sources"] = extract_search_results(choice.message)
                             for start_index in range(0, len(content), 32):
                                 yield content[start_index:start_index + 32]
+                                time.sleep(0.012)
                             return
                         continue
                     stream = client.chat.completions.create(
@@ -893,6 +895,17 @@ def rewrite_image_prompt(text):
     return (out or text).strip()[:700]
 
 
+def rewrite_edit_prompt(text):
+    out = chat_once(
+        [{"role": "system", "content": "Transforme a instrução de edição em um prompt curto em inglês "
+                                       "para um modelo de edição de imagem. Preserve a identidade, o "
+                                       "enquadramento e tudo que não foi pedido para mudar. Responda "
+                                       "SOMENTE com o prompt."},
+         {"role": "user", "content": text}],
+        pick_models(False), max_tokens=400)
+    return (out or text).strip()[:600]
+
+
 def generate_image(prompt):
     """Gera uma imagem usando a API autenticada atual do Pollinations."""
     api_key = secret("POLLINATIONS_API_KEY")
@@ -922,11 +935,87 @@ def generate_image(prompt):
     return None, last
 
 
+EDIT_MODELS = ("black-forest-labs/flux.1-kontext-pro", "kontext")
+
+
+def edit_image(prompt, images):
+    """Edita a imagem anexada via endpoint de edição do Pollinations."""
+    api_key = secret("POLLINATIONS_API_KEY")
+    if not api_key:
+        return None, "Falta POLLINATIONS_API_KEY em Streamlit → Settings → Secrets."
+    if not images:
+        return None, "Anexe uma imagem para editar."
+    image_payload = []
+    for raw in images[:3]:
+        encoded = base64.b64encode(raw).decode()
+        image_payload.append({"image_url": f"data:image/jpeg;base64,{encoded}"})
+    last = "erro desconhecido"
+    for model in EDIT_MODELS:
+        payload = {
+            "prompt": prompt,
+            "image": image_payload,
+            "model": model,
+            "size": "1024x1024",
+            "response_format": "b64_json",
+        }
+        request = urllib.request.Request(
+            "https://gen.pollinations.ai/v1/images/edits",
+            data=json.dumps(payload).encode(),
+            headers={
+                "User-Agent": "Mozilla/5.0 (Eternity)",
+                "Content-Type": "application/json",
+                "Authorization": f"Bearer {api_key}",
+            },
+            method="POST",
+        )
+        try:
+            with urllib.request.urlopen(request, timeout=180) as response:
+                body = json.loads(response.read().decode("utf-8"))
+            item = (body.get("data") or [{}])[0] if isinstance(body, dict) else {}
+            encoded_image = item.get("b64_json") if isinstance(item, dict) else None
+            if encoded_image and encoded_image.startswith("data:"):
+                encoded_image = encoded_image.split(",", 1)[-1]
+            if encoded_image:
+                data = base64.b64decode(encoded_image)
+            elif isinstance(item, dict) and item.get("url"):
+                with urllib.request.urlopen(item["url"], timeout=120) as media:
+                    data = media.read()
+            else:
+                last = "a edição não retornou uma imagem"
+                continue
+            Image.open(io.BytesIO(data)).verify()
+            return data, None
+        except urllib.error.HTTPError as e:
+            detail = ""
+            try:
+                detail = e.read().decode("utf-8", errors="ignore")[:240]
+            except Exception:
+                pass
+            last = f"HTTP {e.code}" + (f": {detail}" if detail else "")
+            if e.code in (400, 404, 422):
+                continue
+            if e.code == 429:
+                time.sleep(5)
+                continue
+        except Exception as e:
+            last = str(e)
+    return None, last
+
+
 IMG_INTENT = re.compile(
     r"\b(?:crie|criar|cria|gere|gerar|gera|desenhe|desenhar|desenha|ilustre|ilustrar|fa[cç]a|faz|fazer|quero|queria|pode(?:ria)?|preciso|make|create|generate|draw|design|please make|please create)"
     r"\b.{0,180}\b(?:imagem|imagens|foto|fotografia|desenho|ilustra[cç][aã]o|logo|logotipo|arte|pintura|wallpaper|image|picture|photo|illustration|logo|artwork|drawing|wallpaper|retrato|avatar|portrait|capa|cover)\b"
     r"|\b(?:imagem|imagens|foto|fotografia|desenho|ilustra[cç][aã]o|logo|logotipo|arte|pintura|wallpaper|image|picture|photo|illustration|artwork|drawing|retrato|avatar|portrait|character design)\b.{0,80}\b(?:crie|criar|cria|gere|gerar|gera|desenhe|desenhar|desenha|ilustre|make|create|generate|draw)\b"
     r"|\b(?:desenha|desenhe|desenhar|ilustre|ilustrar|draw|illustrate)\b.{1,160}",
+    re.I)
+EDIT_INTENT = re.compile(
+    r"\b(?:edite|editar|edita|altere|alterar|altera|modifique|modificar|modifica|"
+    r"troque|trocar|troca|remova|remover|remove|apague|apagar|apaga|"
+    r"coloque|colocar|cola|adicione|adicionar|adiciona|insira|inserir|"
+    r"transforme|transformar|transforma|deixe|deixar|deixa|mude|mudar|muda|"
+    r"ajuste|ajustar|ajusta|melhore|melhorar|melhora|refa[cç]a|refazer|"
+    r"recorte|recortar|recorta|pinte|pintar|pinta|substitua|substituir|"
+    r"edit|change|replace|remove|add|make it|turn it into|restyle|recolor)\b",
     re.I)
 LEARN_TRIGGER = re.compile(
     r"\b(lembre|lembra|memoriz|anote|guarde|aprenda|prefiro|n[aã]o gosto|a partir de agora|"
@@ -983,6 +1072,8 @@ def parse_command(text, has_images):
         return text[7:].strip(), "img"
     if low.startswith("/profundo") or low.startswith("/pensar"):
         return text.split(" ", 1)[1].strip() if " " in text else "", "deep"
+    if has_images and EDIT_INTENT.search(text):
+        return text, "img_edit"
     if not has_images and IMG_INTENT.search(text):
         return text, "img"
     return text, "auto"
@@ -1039,14 +1130,17 @@ def render(m):
             )
 
 
-def reveal_text(ph, text, delay=0.01, words_per_step=3):
-    """Revela o texto em pequenos blocos quando a API entrega tudo de uma vez."""
+_TYPE_CURSOR = '<span class="et-cursor" aria-hidden="true"></span>'
+
+
+def reveal_text(ph, text, delay=0.016, words_per_step=2):
+    """Revela o texto em blocos com cursor, como uma IA digitando."""
     words = text.split(" ")
     if len(words) <= words_per_step:
         ph.markdown(text)
         return
     for end in range(words_per_step, len(words) + words_per_step, words_per_step):
-        ph.markdown(" ".join(words[:end]))
+        ph.markdown(" ".join(words[:end]) + _TYPE_CURSOR, unsafe_allow_html=True)
         time.sleep(delay)
     ph.markdown(text)
 
@@ -1242,6 +1336,37 @@ def render_sidebar():
             f'<div class="et-account-note"><span class="{status_class}"></span>{status_text}</div>',
             unsafe_allow_html=True,
         )
+
+
+_MOBILE_NAV = (
+    ("chat", "Chat", ":material/forum:"),
+    ("library", "Biblioteca", ":material/library_books:"),
+    ("memories", "Memórias", ":material/neurology:"),
+    ("files", "Arquivos", ":material/folder_open:"),
+    ("settings", "Ajustes", ":material/settings:"),
+)
+
+
+def render_mobile_nav():
+    """Barra de navegação compacta usada apenas no celular; a sidebar some no mobile."""
+    page = st.session_state.get("nav_page", "chat")
+    with st.container(key="et_mobile_nav"):
+        cols = st.columns(6, gap="small", vertical_alignment="center")
+        with cols[0]:
+            if st.button(
+                "Novo", icon=":material/add_comment:", key="et_mobile_new",
+                width="stretch",
+            ):
+                start_new_conversation()
+                st.rerun()
+        for col, (item_page, label, icon) in zip(cols[1:], _MOBILE_NAV):
+            with col:
+                if st.button(
+                    label, icon=icon, key=f"et_mobile_{item_page}",
+                    width="stretch",
+                    type="primary" if page == item_page else "secondary",
+                ):
+                    go_to(item_page)
 
 
 # ───────────────────────── Páginas ─────────────────────────
@@ -1630,7 +1755,8 @@ def _composer_controls(scope):
                     st.rerun()
                 st.markdown(
                     '<div class="et-menu-note">'
-                    + ("Geração ativa para a próxima mensagem." if image_on else "Ativa a geração de imagem para a próxima mensagem.")
+                    + ("Imagem ativa para a próxima mensagem." if image_on else
+                       "Cria uma imagem. Com uma imagem anexada, descreva a edição que você quer.")
                     + "</div>",
                     unsafe_allow_html=True,
                 )
@@ -1923,6 +2049,47 @@ def render_settings_page():
         else:
             st.error("Não consegui salvar as preferências. Confira a conexão com o armazenamento.")
 
+def generate_image_with_progress(text, placeholder, source_images=None):
+    """Gera ou edita a imagem em segundo plano com porcentagem e tempo estimado."""
+    editing = bool(source_images)
+    placeholder.markdown(
+        thinking_html("preparando a edição" if editing else "preparando sua imagem"),
+        unsafe_allow_html=True,
+    )
+    en_prompt = rewrite_edit_prompt(text) if editing else rewrite_image_prompt(text)
+    started = time.monotonic()
+    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+        if editing:
+            future = executor.submit(edit_image, en_prompt, source_images)
+        else:
+            future = executor.submit(generate_image, en_prompt)
+        while not future.done():
+            elapsed = time.monotonic() - started
+            pct = min(96, 6 + int(elapsed * 2.4))
+            remaining = max(1, int((100 - pct) / 2.4))
+            if pct >= 80:
+                caption = "finalizando os ajustes" if editing else "finalizando os detalhes"
+            else:
+                caption = "editando sua imagem" if editing else "criando sua imagem"
+            placeholder.markdown(
+                image_loading_html(pct, remaining, caption), unsafe_allow_html=True
+            )
+            time.sleep(0.35)
+        try:
+            data, err = future.result()
+        except Exception as exc:
+            data, err = None, str(exc)
+    if data:
+        placeholder.markdown(
+            image_loading_html(
+                100, 0, "sua edição está pronta" if editing else "sua imagem está pronta"
+            ),
+            unsafe_allow_html=True,
+        )
+        time.sleep(0.35)
+    return data, err
+
+
 # ───────────────────────── Geração e layout principal ─────────────────────────
 def stream_with_stages(ph, ops_ph, gen, state, caption="está pensando", searching=False):
     """Mostra a animação oficial e entrega o texto progressivamente."""
@@ -1940,7 +2107,7 @@ def stream_with_stages(ph, ops_ph, gen, state, caption="está pensando", searchi
         view = clean(raw)
         now = time.monotonic()
         if view and now - last_paint >= 0.035:
-            ph.markdown(view)
+            ph.markdown(view + _TYPE_CURSOR, unsafe_allow_html=True)
             paints += 1
             last_paint = now
         if not cleared and writing_since is not None and now - writing_since > 0.55:
@@ -1963,6 +2130,7 @@ st.session_state.setdefault("nav_page", "chat")
 _page = st.session_state.get("nav_page", "chat")
 
 render_sidebar()
+render_mobile_nav()
 
 _has_messages = bool(mem.get("messages"))
 prompt = None
@@ -2048,8 +2216,8 @@ if prompt or st.session_state.get("suggested_prompt"):
     force_image = bool(st.session_state.pop("force_image", False))
     force_web = bool(st.session_state.pop("force_web_search", False))
     think_more = bool(st.session_state.pop("think_more", False))
-    if force_image and not images:
-        run_mode = "img"
+    if force_image:
+        run_mode = "img_edit" if images else "img"
 
     if text or images or document_sections:
         user_content = text or ("Analise os arquivos anexados." if document_sections else "")
@@ -2071,13 +2239,21 @@ if prompt or st.session_state.get("suggested_prompt"):
         ph = st.empty()
         ok = False
 
-        if run_mode == "img":
-            ops_ph.markdown(thinking_html("está criando sua imagem"), unsafe_allow_html=True)
-            en_prompt = rewrite_image_prompt(text)
-            data, err = generate_image(en_prompt)
+        if run_mode in ("img", "img_edit"):
+            editing = run_mode == "img_edit"
+            image_prompt = text or (
+                "Melhore esta imagem, preservando o assunto principal e a composição."
+                if editing else "Uma imagem bonita e criativa."
+            )
+            data, err = generate_image_with_progress(
+                image_prompt, ops_ph, images if editing else None
+            )
             if data:
                 ops_ph.empty()
-                reply_msg = {"role": "assistant", "gen": data, "content": "Aqui está sua imagem. ✦"}
+                reply_msg = {
+                    "role": "assistant", "gen": data,
+                    "content": "Aqui está sua imagem editada. ✦" if editing else "Aqui está sua imagem. ✦",
+                }
                 mem["messages"].append(reply_msg)
                 with ph.container():
                     render(reply_msg)
@@ -2085,10 +2261,14 @@ if prompt or st.session_state.get("suggested_prompt"):
             else:
                 ops_ph.empty()
                 ph.empty()
-                st.error("Não consegui gerar a imagem desta vez. Tente novamente em instantes.")
+                st.error(
+                    "Não consegui editar a imagem desta vez. Tente novamente em instantes."
+                    if editing else
+                    "Não consegui gerar a imagem desta vez. Tente novamente em instantes."
+                )
                 if not secret("POLLINATIONS_API_KEY"):
                     st.info(
-                        "A geração de imagens precisa da chave POLLINATIONS_API_KEY. "
+                        "A criação e a edição de imagens precisam da chave POLLINATIONS_API_KEY. "
                         "Crie uma chave em https://enter.pollinations.ai e adicione-a em "
                         "Streamlit → Settings → Secrets."
                     )

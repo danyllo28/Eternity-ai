@@ -48,3 +48,31 @@ def thinking_html(caption: str = "está pensando", *, ending: bool = False, sear
         "</div>"
         "</div>"
     )
+
+
+def image_loading_html(pct: int = 0, remaining: int | None = None, caption: str = "criando sua imagem") -> str:
+    """Coroa em movimento + barra e porcentagem enquanto a imagem é gerada."""
+    pct = max(0, min(100, int(pct)))
+    orbits = "".join(_orbit_markup(cls, dashed) for cls, dashed in _ORBITS)
+    if pct >= 100:
+        eta = '<span class="et-image-eta">pronto</span>'
+    elif remaining is not None:
+        eta = f'<span class="et-image-eta">~{max(1, int(remaining))}s restantes</span>'
+    else:
+        eta = ""
+    safe_caption = html.escape(caption)
+    return (
+        '<div class="et-image-load" role="status" aria-live="polite">'
+        '<div class="et-think-stage et-image-stage" aria-hidden="true">'
+        '<span class="et-think-halo"></span>'
+        f"{orbits}"
+        f'<span class="et-think-crown">{crown_svg(42, cls="et-crown-glyph")}</span>'
+        "</div>"
+        '<div class="et-image-meter" aria-hidden="true">'
+        f'<span style="width:{pct}%"></span>'
+        "</div>"
+        '<div class="et-image-status">'
+        f"<strong>{pct}%</strong><span>{safe_caption}</span>{eta}"
+        "</div>"
+        "</div>"
+    )
