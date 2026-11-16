@@ -15,6 +15,7 @@ import urllib.request
 from datetime import datetime, timedelta, timezone
 
 import streamlit as st
+import streamlit.components.v1 as components
 from groq import APIError, BadRequestError, Groq
 from PIL import Image, ImageOps
 
@@ -296,7 +297,10 @@ if not API_KEY:
     hero("Configure GROQ_API_KEY em Settings → Secrets para começar.")
     st.stop()
 
-client = Groq(api_key=API_KEY, timeout=300, max_retries=2)
+_groq_options = {"api_key": API_KEY, "timeout": 300, "max_retries": 2}
+if os.getenv("GROQ_BASE_URL"):
+    _groq_options["base_url"] = os.environ["GROQ_BASE_URL"]
+client = Groq(**_groq_options)
 
 
 @st.cache_data(ttl=600, show_spinner=False)
@@ -915,7 +919,8 @@ def generate_image(prompt):
     for attempt_no in range(3):
         seed = random.randint(1, 10**6)
         encoded = urllib.parse.quote(prompt, safe="")
-        url = (f"https://gen.pollinations.ai/image/{encoded}"
+        base = os.getenv("POLLINATIONS_BASE_URL", "https://gen.pollinations.ai").rstrip("/")
+        url = (f"{base}/image/{encoded}"
                f"?model=flux&width=1024&height=1024&nologo=true&seed={seed}&safe=true")
         headers = {"User-Agent": "Mozilla/5.0 (Eternity)", "Authorization": f"Bearer {api_key}"}
         try:
@@ -958,8 +963,9 @@ def edit_image(prompt, images):
             "size": "1024x1024",
             "response_format": "b64_json",
         }
+        base = os.getenv("POLLINATIONS_BASE_URL", "https://gen.pollinations.ai").rstrip("/")
         request = urllib.request.Request(
-            "https://gen.pollinations.ai/v1/images/edits",
+            f"{base}/v1/images/edits",
             data=json.dumps(payload).encode(),
             headers={
                 "User-Agent": "Mozilla/5.0 (Eternity)",
@@ -1345,6 +1351,40 @@ _MOBILE_NAV = (
     ("files", "Arquivos", ":material/folder_open:"),
     ("settings", "Ajustes", ":material/settings:"),
 )
+
+
+def scroll_to_latest():
+    """Rola a área principal até a resposta recém-renderizada (inclui imagens)."""
+    components.html(
+        """
+        <script>
+        (() => {
+          const doc = window.parent.document;
+          const main = doc.querySelector('[data-testid="stMain"]');
+          if (!main) return;
+          const messages = doc.querySelectorAll('[class*="st-key-et_msg_"]');
+          const last = messages[messages.length - 1];
+          const image = last ? last.querySelector('img') : null;
+          const go = (smooth) => {
+            if (!last) return;
+            if (image) {
+              const top = last.getBoundingClientRect().top - main.getBoundingClientRect().top + main.scrollTop - 8;
+              main.scrollTo({top: Math.max(0, top), behavior: smooth ? 'smooth' : 'auto'});
+            } else {
+              main.scrollTo({top: main.scrollHeight, behavior: smooth ? 'smooth' : 'auto'});
+            }
+          };
+          if (image && !image.complete) {
+            image.addEventListener('load', () => setTimeout(() => go(false), 120), {once: true});
+          }
+          setTimeout(() => go(true), 220);
+          setTimeout(() => go(false), 1200);
+        })();
+        </script>
+        """,
+        height=0,
+        width=0,
+    )
 
 
 def render_mobile_nav():
@@ -2324,6 +2364,7 @@ if prompt or st.session_state.get("suggested_prompt"):
                             st.code(hide_model_ids(str(state["error"])))
 
         if ok:
+            st.session_state["scroll_after_render"] = True
             save_memory(mem)
             explicit_learning_request = bool(LEARN_TRIGGER.search(text or ""))
             automatic_learning_enabled = bool(mem.get("auto_learning", True))
@@ -2345,3 +2386,7 @@ if prompt or st.session_state.get("suggested_prompt"):
             st.session_state["composer_files"] = []
             st.session_state["attach_epoch"] = int(st.session_state.get("attach_epoch", 0)) + 1
             st.rerun()
+
+
+if st.session_state.pop("scroll_after_render", False):
+    scroll_to_latest()

@@ -797,7 +797,7 @@ button:focus-visible, textarea:focus-visible, input:focus-visible, [role="tab"]:
   [class*="st-key-et_recents"] { max-height: 38vh; }
 }
 @media (max-width: 640px) {
-  [data-testid="stMainBlockContainer"], .block-container { padding: .75rem .8rem 6.6rem !important; }
+  [data-testid="stMainBlockContainer"], .block-container { padding: .75rem .8rem 12rem !important; }
   [data-testid="stBottomBlockContainer"] { padding-left: .8rem !important; padding-right: .8rem !important; }
   [class*="st-key-et_composer"] { border-radius: 20px; padding: .4rem .4rem .28rem; }
   [class*="st-key-et_composer"] [data-testid="stChatInput"] textarea { font-size: .95rem !important; }
@@ -821,6 +821,11 @@ button:focus-visible, textarea:focus-visible, input:focus-visible, [role="tab"]:
     flex: 0 0 auto !important; width: auto !important; min-width: 0 !important;
   }
   [data-testid="stPopoverBody"] { max-width: calc(100vw - 1.6rem); }
+}
+@media (max-width: 350px) {
+  [data-testid="stChatInput"] button[aria-label="Upload files"] { display: none !important; }
+  [class*="st-key-et_composer"] [data-testid="stChatInput"] textarea { font-size: .88rem !important; }
+  [data-testid="stChatInput"] { padding-left: .3rem !important; padding-right: .3rem !important; }
 }
 @media (max-width: 380px) {
   [data-testid="stMainBlockContainer"], .block-container { padding-left: .6rem !important; padding-right: .6rem !important; }
