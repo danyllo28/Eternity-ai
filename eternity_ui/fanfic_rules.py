@@ -1,20 +1,25 @@
-"""Regras de fanfic/histórias da Eternity.
+"""Regras de fanfic/histórias da Eternity, guardadas fora do projeto local.
 
-A fonte oficial do texto é o arquivo no GitHub (branch main):
-https://github.com/danyllo28/Eternity-ai/blob/main/.eternity/fanfics/regras.md
+O texto oficial fica no GitHub, num branch separado (``_internal``) que não vem
+junto na pasta do projeto. Assim não existe cópia dele na máquina: o app baixa,
+mantém em memória e usa como instrução do modelo.
 
-O app baixa esse arquivo do GitHub a cada minuto, então editar lá (pelo site do
-GitHub, sem terminal) muda o comportamento da Eternity sem reiniciar nada.
-A cópia local .eternity/fanfics/regras.md só é usada como reserva quando o app
-está sem internet — editar a cópia local não tem efeito enquanto houver conexão.
+Editar é pelo site do GitHub, no arquivo .eternity/fanfics/regras.md do branch
+_internal. A mudança passa a valer em até um minuto, sem reiniciar nada.
+
+Opcional: definir a variável de ambiente/secreta FANFIC_RULES_URL aponta para
+outro endereço (por exemplo o link raw de um Gist secreto) e ele tem prioridade.
 """
 
+import os
 import time
 import urllib.request
-from pathlib import Path
 
-_RAW_URL = "https://raw.githubusercontent.com/danyllo28/Eternity-ai/main/.eternity/fanfics/regras.md"
-_LOCAL_PATH = Path(__file__).resolve().parent.parent / ".eternity" / "fanfics" / "regras.md"
+_BRANCH = "_internal"
+_RAW_URL = (
+    "https://raw.githubusercontent.com/danyllo28/Eternity-ai/"
+    f"{_BRANCH}/.eternity/fanfics/regras.md"
+)
 _TIMEOUT = 4
 _TTL = 60.0
 
@@ -40,31 +45,27 @@ def _clean(text: str) -> str:
     return text
 
 
+def _url() -> str:
+    return (os.environ.get("FANFIC_RULES_URL") or "").strip() or _RAW_URL
+
+
 def _from_github() -> str:
-    request = urllib.request.Request(_RAW_URL, headers={"User-Agent": "EternityApp"})
+    request = urllib.request.Request(_url(), headers={"User-Agent": "EternityApp"})
     with urllib.request.urlopen(request, timeout=_TIMEOUT) as response:
         return response.read().decode("utf-8")
 
 
-def _from_local() -> str:
-    try:
-        return _LOCAL_PATH.read_text(encoding="utf-8")
-    except OSError:
-        return ""
-
-
 def load_rules() -> str:
-    """Texto atual das regras (GitHub primeiro, arquivo local como reserva)."""
+    """Texto atual das regras, buscado no GitHub (com cache curto em memória)."""
     now = time.monotonic()
     if _cache["text"] and (now - _cache["at"]) < _TTL:
         return _cache["text"]
 
-    text = ""
     try:
         text = _clean(_from_github())
     except Exception:
         text = ""
-    text = text or _clean(_from_local()) or _FALLBACK
+    text = text or _cache["text"] or _FALLBACK
 
     _cache["at"] = now
     _cache["text"] = text

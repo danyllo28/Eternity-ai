@@ -4,3 +4,4 @@ __pycache__/
 eternity_accounts.json
 eternity_memory*.json
 .streamlit/secrets.toml
+.eternity/
