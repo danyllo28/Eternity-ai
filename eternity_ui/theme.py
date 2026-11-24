@@ -84,6 +84,7 @@ _CSS = """
   --et-ease: cubic-bezier(.22,.61,.36,1);
   --et-r-sm: 10px; --et-r-md: 14px; --et-r-lg: 20px; --et-r-xl: 26px;
   color-scheme: dark;
+  --et-bottom-space: 7.5rem;
 }
 __LIGHT_MEDIA__
 __EXTRA__
@@ -118,7 +119,7 @@ button, input, textarea, select, [class*="css"] {
 
 [data-testid="stMainBlockContainer"], .block-container {
   max-width: 880px !important;
-  padding: 1.15rem 2rem 7.5rem !important;
+  padding: 1.15rem 2rem var(--et-bottom-space) !important;
 }
 [data-testid="stVerticalBlock"] { gap: .28rem; }
 
@@ -705,7 +706,7 @@ button:focus-visible, textarea:focus-visible, input:focus-visible, [role="tab"]:
 @keyframes et-dot { 0%,100% { opacity: .25 } 40% { opacity: 1 } }
 @keyframes et-think-collapse { to { height: 0; opacity: 0; margin: 0; } }
 
-/* ── Autenticação ─────────────────────────────────────────────── *//* ── Autenticação ─────────────────────────────────────────────── */
+/* ── Autenticação ─────────────────────────────────────────────── */
 .et-auth-hero { text-align: center; padding: clamp(1.4rem, 8vh, 4.6rem) 0 1.4rem; }
 .et-auth-crown { display: inline-flex; color: var(--et-crown); filter: drop-shadow(0 6px 24px var(--et-halo)); }
 .et-auth-name { font-family: var(--et-serif); font-size: 2.15rem; letter-spacing: -.01em; margin-top: .5rem; color: var(--et-text); }
@@ -743,24 +744,70 @@ button:focus-visible, textarea:focus-visible, input:focus-visible, [role="tab"]:
 [data-baseweb="tab-highlight"], [data-testid="stTabHighlight"] { display: none !important; }
 [data-testid="stTabBorder"], [data-baseweb="tab-border"] { display: none !important; }
 
-@media (max-width: 1024px) {
-  [data-testid="stMainBlockContainer"], .block-container { padding: 1rem 1.25rem 7.2rem !important; }
-  [data-testid="stBottomBlockContainer"] { padding-left: 1.25rem !important; padding-right: 1.25rem !important; }
+/* Conteúdo largo (imagens, código, tabelas) nunca estoura a tela. */
+[data-testid="stMarkdownContainer"] img,
+[data-testid="stImage"] img { max-width: 100%; height: auto; }
+[data-testid="stMarkdownContainer"] pre,
+[data-testid="stCode"] pre { overflow-x: auto; max-width: 100%; }
+[data-testid="stMarkdownContainer"] table { max-width: 100%; }
+/* 16px evita o zoom automático do iOS ao focar o campo. */
+[data-testid="stChatInput"] textarea { font-size: 16px !important; }
+
+/* Ações das respostas no desktop. */
+[class*="st-key-et_msg_"] .stButton > button {
+  min-height: 26px; padding: .05rem .45rem !important; font-size: .72rem !important;
+  border-radius: 999px !important; color: var(--et-muted) !important;
+  background: transparent !important; border: 1px solid var(--et-border-soft) !important;
 }
+[class*="st-key-et_msg_"] .stButton > button:hover {
+  color: var(--et-text) !important; background: var(--et-surface-2) !important;
+  border-color: var(--et-border) !important;
+}
+[class*="st-key-et_conv_open_"] button.et-pinned::after { content: " •"; color: var(--et-accent); }
+
+@media (hover: none) {
+  [class*="st-key-et_msg_"] .stButton > button { opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .001ms !important; animation-iteration-count: 1 !important;
+    transition-duration: .001ms !important; scroll-behavior: auto !important;
+  }
+  .et-think .et-orbit { display: none !important; }
+  [class*="st-key-et_msg_"] * { transition: none !important; }
+}
+
+/* ── Pontos de quebra ───────────────────────────────────────────
+   Cada bloco aparece uma única vez, do mais largo ao mais estreito, e só
+   refina o anterior. O espaço abaixo das mensagens vem de
+   --et-bottom-space, que acompanha a altura do compositor fixo. */
+
+@media (min-width: 769px) and (max-width: 1180px) {
+  [data-testid="stSidebar"] { width: 250px !important; min-width: 250px !important; }
+  [data-testid="stMainBlockContainer"], .block-container {
+    padding-left: 1.15rem !important; padding-right: 1.15rem !important;
+  }
+  [data-testid="stBottomBlockContainer"] { padding-left: 1.15rem !important; padding-right: 1.15rem !important; }
+  [class*="st-key-et_msg_"] .stButton > button { min-height: 32px; font-size: .75rem !important; }
+}
+
 @media (max-width: 900px) {
+  /* A navegação móvel fica no fluxo, no topo: nada flutua sobre o chat. */
   [data-testid="stSidebar"], [data-testid="stSidebarCollapsedControl"],
   [data-testid="stExpandSidebarButton"] { display: none !important; }
   [data-testid="stHeader"], [data-testid="stToolbar"] { display: none !important; }
+  :root { --et-bottom-space: calc(8.5rem + env(safe-area-inset-bottom)); }
+  [data-testid="stMain"] { padding-left: 0 !important; padding-right: 0 !important; }
+  [data-testid="stMainBlockContainer"], .block-container {
+    padding: .5rem 1rem var(--et-bottom-space) !important;
+  }
+  [data-testid="stBottomBlockContainer"] { padding-left: 1rem !important; padding-right: 1rem !important; }
   [class*="st-key-et_mobile_nav"] {
     display: block !important; padding: .05rem 0 .35rem;
     border-bottom: 1px solid var(--et-border-soft); margin-bottom: .55rem;
   }
-  [class*="st-key-et_mobile_nav"] [data-testid="stHorizontalBlock"] {
-    flex-wrap: nowrap !important; gap: .1rem !important;
-  }
-  [class*="st-key-et_mobile_nav"] [data-testid="stColumn"] {
-    flex: 1 1 0 !important; width: auto !important; min-width: 0 !important;
-  }
+  [class*="st-key-et_mobile_nav"] [data-testid="stHorizontalBlock"] { flex-wrap: nowrap !important; gap: .1rem !important; }
+  [class*="st-key-et_mobile_nav"] [data-testid="stColumn"] { flex: 1 1 0 !important; width: auto !important; min-width: 0 !important; }
   [class*="st-key-et_mobile_nav"] .stButton button {
     min-height: 48px !important; height: 48px; padding: .15rem .04rem !important;
     border-radius: 10px !important; background: transparent !important;
@@ -787,20 +834,41 @@ button:focus-visible, textarea:focus-visible, input:focus-visible, [role="tab"]:
   [class*="st-key-et_mobile_nav"] .stButton button:hover {
     background: var(--et-surface) !important; color: var(--et-text) !important;
   }
-  [data-testid="stMainBlockContainer"], .block-container { padding: .5rem 1rem calc(9.5rem + env(safe-area-inset-bottom)) !important; }
+  [data-testid="stChatInput"] textarea { min-height: 44px !important; }
+  [data-testid="stChatInput"] button[aria-label="Send"] { min-width: 44px; min-height: 44px; }
   .et-page-head { padding-top: .1rem; }
   [role="tablist"], [data-baseweb="tab-list"] { border-bottom: 1px solid var(--et-border) !important; }
-  [data-testid="stTab"], [data-baseweb="tab"] { margin-right: .85rem !important; font-size: .8rem !important; padding: .4rem 0 !important; }
-  [data-testid="stBottomBlockContainer"] { padding-left: 1rem !important; padding-right: 1rem !important; }
+  [data-testid="stTab"], [data-baseweb="tab"] {
+    margin-right: .85rem !important; font-size: .8rem !important; padding: .4rem 0 !important;
+  }
   .et-welcome { padding-top: 2.2rem; }
   .et-welcome h1 { font-size: 1.95rem; }
   [class*="st-key-et_recents"] { max-height: 38vh; }
+  [data-testid="stMarkdownContainer"] h1 { font-size: 1.28rem; }
+  [data-testid="stMarkdownContainer"] h2 { font-size: 1.12rem; }
+  [data-testid="stMarkdownContainer"] h3 { font-size: 1rem; }
+  [data-testid="stMarkdownContainer"] p, [data-testid="stMarkdownContainer"] li { line-height: 1.65; }
 }
+
 @media (max-width: 640px) {
-  [data-testid="stMainBlockContainer"], .block-container { padding: .6rem .7rem calc(9rem + env(safe-area-inset-bottom)) !important; }
-  [data-testid="stBottomBlockContainer"] { padding-left: .8rem !important; padding-right: .8rem !important; }
+  :root { --et-bottom-space: calc(8rem + env(safe-area-inset-bottom)); }
+  [data-testid="stMainBlockContainer"], .block-container {
+    padding: .4rem .7rem var(--et-bottom-space) !important;
+  }
+  [data-testid="stBottomBlockContainer"] { padding-left: .7rem !important; padding-right: .7rem !important; }
   [class*="st-key-et_composer"] { border-radius: 20px; padding: .4rem .4rem .28rem; }
-  [class*="st-key-et_composer"] [data-testid="stChatInput"] textarea { font-size: .95rem !important; }
+  [class*="st-key-et_composer_controls"] [data-testid="stPopoverButton"] {
+    font-size: .74rem !important; padding: .1rem .25rem !important;
+  }
+  [class*="st-key-et_composer_controls"] [data-testid="stHorizontalBlock"] {
+    flex-wrap: nowrap !important; gap: .25rem !important;
+  }
+  [class*="st-key-et_composer_controls"] [data-testid="stColumn"] {
+    width: auto !important; flex: 1 1 33% !important; min-width: 0 !important;
+  }
+  [class*="st-key-et_msg_"] .stButton > button {
+    min-height: 40px; padding: .25rem .6rem !important; font-size: .76rem !important;
+  }
   .et-welcome h1 { font-size: 1.72rem; }
   .et-welcome p { font-size: .92rem; }
   .et-welcome-mark { width: 64px; height: 64px; }
@@ -810,107 +878,40 @@ button:focus-visible, textarea:focus-visible, input:focus-visible, [role="tab"]:
   .et-think { height: 176px; }
   .et-think-stage { transform: scale(.88); }
   .et-think-halo { inset: 8% 0; }
-  [class*="st-key-et_composer_controls"] [data-testid="stPopoverButton"] { font-size: .74rem !important; padding: .1rem .25rem !important; }
-  [class*="st-key-et_composer_controls"] [data-testid="stHorizontalBlock"] { flex-wrap: nowrap !important; gap: .25rem !important; }
-  [class*="st-key-et_composer_controls"] [data-testid="stColumn"] { width: auto !important; flex: 1 1 33% !important; min-width: 0 !important; }
-  [data-baseweb="tab"] { margin-right: .8rem; font-size: .8rem !important; }
   [role="tablist"], [data-baseweb="tab-list"] {
     flex-wrap: wrap !important; overflow-x: visible !important; row-gap: .15rem;
   }
   [data-testid="stTab"], [data-baseweb="tab"] {
     flex: 0 0 auto !important; width: auto !important; min-width: 0 !important;
+    margin-right: .8rem !important;
   }
   [data-testid="stPopoverBody"] { max-width: calc(100vw - 1.6rem); }
 }
-@media (max-width: 350px) {
-  [data-testid="stChatInput"] button[aria-label="Upload files"] { display: none !important; }
-  [class*="st-key-et_composer"] [data-testid="stChatInput"] textarea { font-size: .88rem !important; }
-  [data-testid="stChatInput"] { padding-left: .3rem !important; padding-right: .3rem !important; }
-}
+
 @media (max-width: 380px) {
-  [data-testid="stMainBlockContainer"], .block-container { padding-left: .6rem !important; padding-right: .6rem !important; }
+  [data-testid="stMainBlockContainer"], .block-container {
+    padding-left: .55rem !important; padding-right: .55rem !important;
+  }
   .et-welcome h1 { font-size: 1.58rem; }
   .et-welcome p { font-size: .88rem; }
   .et-think-stage { transform: scale(.8); }
 }
 
-@media (prefers-reduced-motion: reduce) {
-  *, *::before, *::after {
-    animation-duration: .001ms !important; animation-iteration-count: 1 !important;
-    transition-duration: .001ms !important; scroll-behavior: auto !important;
-  }
-  .et-think .et-orbit { display: none !important; }
-}
-/* ── Ícones personalizados da Eternity ───────────────────────── */
-.et-title-glyph{color:var(--et-accent);margin-right:.35rem;vertical-align:-2px}
-[class*="st-key-et_msg_"] .stButton > button{gap:.3rem}
-
-/* ── Responsividade avançada da Eternity ─────────────────────── */
-html, body { overflow-x: hidden; }
-[data-testid="stMarkdownContainer"] img,
-[data-testid="stImage"] img { max-width: 100%; height: auto; }
-[data-testid="stMarkdownContainer"] pre,
-[data-testid="stCode"] pre { overflow-x: auto; max-width: 100%; }
-[data-testid="stMarkdownContainer"] table { max-width: 100%; }
-[data-testid="stChatInput"] textarea { font-size: 16px !important; }
-
-/* Botões com área de toque confortável */
-[class*="st-key-et_msg_"] .stButton > button {
-  min-height: 38px; min-width: 38px;
+@media (max-width: 350px) {
+  [data-testid="stChatInput"] button[aria-label="Upload files"] { display: none !important; }
+  [data-testid="stChatInput"] { padding-left: .3rem !important; padding-right: .3rem !important; }
 }
 
-/* Celular */
-@media (max-width: 768px) {
-  [data-testid="stMain"] { padding-left: 0 !important; padding-right: 0 !important; }
-  [data-testid="stMainBlockContainer"] {
-    padding-left: .85rem !important; padding-right: .85rem !important;
-    padding-bottom: calc(9.5rem + env(safe-area-inset-bottom)) !important;
-  }
-  [class*="st-key-et_mobile_nav"] [data-testid="stColumn"] { min-width: 0 !important; }
-  [class*="st-key-et_msg_"] .stButton > button {
-    min-height: 40px; padding: .25rem .6rem !important; font-size: .76rem !important;
-  }
-  [data-testid="stChatInput"] textarea { min-height: 48px !important; }
-  [data-testid="stChatInput"] button[aria-label="Send"] { min-width: 46px; min-height: 46px; }
-  [data-testid="stMarkdownContainer"] h1 { font-size: 1.28rem; }
-  [data-testid="stMarkdownContainer"] h2 { font-size: 1.12rem; }
-  [data-testid="stMarkdownContainer"] h3 { font-size: 1rem; }
-  [data-testid="stMarkdownContainer"] p, [data-testid="stMarkdownContainer"] li { line-height: 1.65; }
-}
-
-/* Tablet */
-@media (min-width: 769px) and (max-width: 1180px) {
-  [data-testid="stSidebar"] { width: 250px !important; min-width: 250px !important; }
-  [data-testid="stMainBlockContainer"] { padding-left: 1.15rem !important; padding-right: 1.15rem !important; }
-  [class*="st-key-et_msg_"] .stButton > button { min-height: 32px; font-size: .75rem !important; }
-}
-
-/* PC */
 @media (min-width: 1181px) {
-  [data-testid="stMainBlockContainer"] { max-width: 1120px; margin: 0 auto; }
-  [class*="st-key-et_msg_"] .stButton > button { opacity: .72; transition: opacity .18s ease, background .18s ease; }
+  [data-testid="stMainBlockContainer"], .block-container {
+    max-width: 1120px !important; margin: 0 auto !important;
+  }
+  [class*="st-key-et_msg_"] .stButton > button {
+    opacity: .72; transition: opacity .18s ease, background .18s ease;
+  }
   [class*="st-key-et_msg_"]:hover .stButton > button { opacity: 1; }
 }
 
-/* Acessibilidade e toque */
-@media (hover: none) {
-  [class*="st-key-et_msg_"] .stButton > button { opacity: 1; }
-}
-@media (prefers-reduced-motion: reduce) {
-  [class*="st-key-et_msg_"] * { transition: none !important; }
-}
-
-/* ── Recursos novos da Eternity ───────────────────────────────── */
-[class*="st-key-et_msg_"] .stButton > button {
-  min-height: 26px; padding: .05rem .45rem !important; font-size: .72rem !important;
-  border-radius: 999px !important; color: var(--et-muted) !important;
-  background: transparent !important; border: 1px solid var(--et-border-soft) !important;
-}
-[class*="st-key-et_msg_"] .stButton > button:hover {
-  color: var(--et-text) !important; background: var(--et-surface-2) !important;
-  border-color: var(--et-border) !important;
-}
-[class*="st-key-et_conv_open_"] button.et-pinned::after { content: " •"; color: var(--et-accent); }
 
 """
 
