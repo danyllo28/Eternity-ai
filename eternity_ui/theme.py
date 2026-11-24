@@ -787,7 +787,7 @@ button:focus-visible, textarea:focus-visible, input:focus-visible, [role="tab"]:
   [class*="st-key-et_mobile_nav"] .stButton button:hover {
     background: var(--et-surface) !important; color: var(--et-text) !important;
   }
-  [data-testid="stMainBlockContainer"], .block-container { padding: .5rem 1rem 7rem !important; }
+  [data-testid="stMainBlockContainer"], .block-container { padding: .5rem 1rem calc(9.5rem + env(safe-area-inset-bottom)) !important; }
   .et-page-head { padding-top: .1rem; }
   [role="tablist"], [data-baseweb="tab-list"] { border-bottom: 1px solid var(--et-border) !important; }
   [data-testid="stTab"], [data-baseweb="tab"] { margin-right: .85rem !important; font-size: .8rem !important; padding: .4rem 0 !important; }
@@ -797,7 +797,7 @@ button:focus-visible, textarea:focus-visible, input:focus-visible, [role="tab"]:
   [class*="st-key-et_recents"] { max-height: 38vh; }
 }
 @media (max-width: 640px) {
-  [data-testid="stMainBlockContainer"], .block-container { padding: .75rem .8rem 12rem !important; }
+  [data-testid="stMainBlockContainer"], .block-container { padding: .6rem .7rem calc(9rem + env(safe-area-inset-bottom)) !important; }
   [data-testid="stBottomBlockContainer"] { padding-left: .8rem !important; padding-right: .8rem !important; }
   [class*="st-key-et_composer"] { border-radius: 20px; padding: .4rem .4rem .28rem; }
   [class*="st-key-et_composer"] [data-testid="stChatInput"] textarea { font-size: .95rem !important; }
@@ -842,15 +842,11 @@ button:focus-visible, textarea:focus-visible, input:focus-visible, [role="tab"]:
   .et-think .et-orbit { display: none !important; }
 }
 /* ── Ícones personalizados da Eternity ───────────────────────── */
-.et-quick-head{display:flex;align-items:center;gap:.4rem;color:var(--et-muted);font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;margin:.4rem 0 .2rem}
-.et-quick-glyph{color:var(--et-accent)}
 .et-title-glyph{color:var(--et-accent);margin-right:.35rem;vertical-align:-2px}
-[class*="st-key-et_quick_actions_"] .stButton > button{gap:.35rem}
 [class*="st-key-et_msg_"] .stButton > button{gap:.3rem}
 
 /* ── Responsividade avançada da Eternity ─────────────────────── */
-html, body, [data-testid="stAppViewContainer"] { overflow-x: hidden; }
-[data-testid="stMainBlockContainer"] { max-width: 100%; }
+html, body { overflow-x: hidden; }
 [data-testid="stMarkdownContainer"] img,
 [data-testid="stImage"] img { max-width: 100%; height: auto; }
 [data-testid="stMarkdownContainer"] pre,
@@ -859,46 +855,20 @@ html, body, [data-testid="stAppViewContainer"] { overflow-x: hidden; }
 [data-testid="stChatInput"] textarea { font-size: 16px !important; }
 
 /* Botões com área de toque confortável */
-[class*="st-key-et_msg_"] .stButton > button,
-[class*="st-key-et_quick_actions_"] .stButton > button {
+[class*="st-key-et_msg_"] .stButton > button {
   min-height: 38px; min-width: 38px;
 }
 
-/* Ações rápidas: rolagem horizontal no celular */
-[class*="st-key-et_quick_actions_"] {
-  display: flex; flex-wrap: nowrap; gap: .4rem;
-  overflow-x: auto; scrollbar-width: none; -ms-overflow-style: none;
-  padding-bottom: .15rem; scroll-behavior: smooth;
-}
-[class*="st-key-et_quick_actions_"]::-webkit-scrollbar { display: none; height: 0; }
-[class*="st-key-et_quick_actions_"] .stButton { flex: 0 0 auto; }
-[class*="st-key-et_quick_actions_"] .stButton > button { white-space: nowrap; }
-
 /* Celular */
 @media (max-width: 768px) {
-  [data-testid="stSidebar"] {
-    position: fixed !important; inset: 0 auto 0 0 !important;
-    width: min(84vw, 310px) !important; z-index: 999 !important;
-    box-shadow: 0 0 40px rgba(0,0,0,.45);
-  }
   [data-testid="stMain"] { padding-left: 0 !important; padding-right: 0 !important; }
-  [data-testid="stMainBlockContainer"] { padding-left: .75rem !important; padding-right: .75rem !important; }
-  [class*="st-key-et_mobile_nav"] {
-    position: fixed; left: 0; right: 0; bottom: 0; z-index: 900;
-    background: color-mix(in srgb, var(--et-surface) 92%, transparent);
-    backdrop-filter: blur(14px); border-top: 1px solid var(--et-border);
-    padding: .45rem .5rem calc(.45rem + env(safe-area-inset-bottom));
+  [data-testid="stMainBlockContainer"] {
+    padding-left: .85rem !important; padding-right: .85rem !important;
+    padding-bottom: calc(9.5rem + env(safe-area-inset-bottom)) !important;
   }
-  [class*="st-key-et_mobile_nav"] .stButton > button {
-    min-height: 48px; font-size: .68rem !important; border-radius: 14px !important;
-  }
-  [data-testid="stBottom"] > div { padding-bottom: calc(72px + env(safe-area-inset-bottom)) !important; }
-  [class*="st-key-et_composer"] { padding-bottom: calc(78px + env(safe-area-inset-bottom)); }
+  [class*="st-key-et_mobile_nav"] [data-testid="stColumn"] { min-width: 0 !important; }
   [class*="st-key-et_msg_"] .stButton > button {
     min-height: 40px; padding: .25rem .6rem !important; font-size: .76rem !important;
-  }
-  [class*="st-key-et_quick_actions_"] .stButton > button {
-    min-height: 36px; font-size: .76rem !important; padding: .2rem .65rem !important;
   }
   [data-testid="stChatInput"] textarea { min-height: 48px !important; }
   [data-testid="stChatInput"] button[aria-label="Send"] { min-width: 46px; min-height: 46px; }
@@ -912,15 +882,12 @@ html, body, [data-testid="stAppViewContainer"] { overflow-x: hidden; }
 @media (min-width: 769px) and (max-width: 1180px) {
   [data-testid="stSidebar"] { width: 250px !important; min-width: 250px !important; }
   [data-testid="stMainBlockContainer"] { padding-left: 1.15rem !important; padding-right: 1.15rem !important; }
-  [class*="st-key-et_quick_actions_"] { flex-wrap: wrap; overflow-x: visible; }
-  [class*="st-key-et_quick_actions_"] .stButton > button { min-height: 34px; font-size: .78rem !important; }
   [class*="st-key-et_msg_"] .stButton > button { min-height: 32px; font-size: .75rem !important; }
 }
 
 /* PC */
 @media (min-width: 1181px) {
   [data-testid="stMainBlockContainer"] { max-width: 1120px; margin: 0 auto; }
-  [class*="st-key-et_quick_actions_"] { flex-wrap: wrap; overflow-x: visible; }
   [class*="st-key-et_msg_"] .stButton > button { opacity: .72; transition: opacity .18s ease, background .18s ease; }
   [class*="st-key-et_msg_"]:hover .stButton > button { opacity: 1; }
 }
@@ -930,22 +897,10 @@ html, body, [data-testid="stAppViewContainer"] { overflow-x: hidden; }
   [class*="st-key-et_msg_"] .stButton > button { opacity: 1; }
 }
 @media (prefers-reduced-motion: reduce) {
-  [class*="st-key-et_quick_actions_"], [class*="st-key-et_msg_"] * { transition: none !important; }
+  [class*="st-key-et_msg_"] * { transition: none !important; }
 }
 
 /* ── Recursos novos da Eternity ───────────────────────────────── */
-[class*="st-key-et_quick_actions_"] {
-  display: flex; flex-wrap: wrap; gap: .35rem; margin: .35rem 0 .55rem;
-}
-[class*="st-key-et_quick_actions_"] .stButton > button {
-  min-height: 30px; padding: .12rem .55rem !important; font-size: .78rem !important;
-  border-radius: 999px !important; color: var(--et-muted) !important;
-  background: var(--et-surface) !important; border: 1px solid var(--et-border) !important;
-}
-[class*="st-key-et_quick_actions_"] .stButton > button:hover {
-  color: var(--et-text) !important; background: var(--et-surface-2) !important;
-  border-color: var(--et-border-strong) !important;
-}
 [class*="st-key-et_msg_"] .stButton > button {
   min-height: 26px; padding: .05rem .45rem !important; font-size: .72rem !important;
   border-radius: 999px !important; color: var(--et-muted) !important;

@@ -1,7 +1,7 @@
 """Recursos exclusivos da Eternity.
 
-Este módulo concentra ações rápidas, leitura em voz alta, cópia, fixação de
-conversas e ferramentas de estudo. Tudo foi desenhado para manter a identidade
+Este módulo concentra leitura em voz alta, cópia de respostas, fixação de
+conversas e ordenação do histórico. Tudo foi desenhado para manter a identidade
 própria da Eternity: simples, acolhedora e útil no dia a dia.
 """
 from __future__ import annotations
@@ -11,19 +11,6 @@ import json
 
 import streamlit as st
 
-from .icons import icon_svg
-
-
-QUICK_ACTIONS = (
-    ("Resumir", "Resuma a conversa e os pontos mais importantes de forma clara."),
-    ("Explicar simples", "Explique a última resposta com palavras simples e um exemplo prático."),
-    ("Continuar", "Continue a partir daqui, aprofundando o assunto sem repetir o que já foi dito."),
-    ("Ideias", "Dê 5 ideias práticas e criativas relacionadas ao assunto atual."),
-    ("Estudar", "Crie um plano de estudo curto, com tópicos, perguntas e um mini-teste."),
-    ("Traduzir", "Traduza a última resposta para inglês, mantendo o sentido natural."),
-    ("Regenerar", "Refaça a última resposta com mais clareza, precisão e um exemplo útil. Não repita o texto anterior."),
-    ("Melhorar texto", "Melhore o último texto que eu enviei: deixe-o mais claro, natural e bem organizado, sem mudar o sentido."),
-)
 
 
 def message_actions(text: str, index: int) -> None:
@@ -77,22 +64,6 @@ def speak_text(text: str, key: str) -> None:
         """,
         height=0,
     )
-
-
-def render_quick_actions(scope: str) -> None:
-    """Ações rápidas da Eternity, acima do campo de mensagem."""
-    st.markdown(
-        '<div class="et-quick-head">'
-        f'{icon_svg("sparkle", 16, cls="et-quick-glyph")}'
-        '<span>Ações rápidas da Eternity</span></div>',
-        unsafe_allow_html=True,
-    )
-    with st.container(key=f"et_quick_actions_{scope}"):
-        cols = st.columns(len(QUICK_ACTIONS), gap="small")
-        for col, (label, prompt) in zip(cols, QUICK_ACTIONS):
-            if col.button(label, key=f"et_quick_{scope}_{label}", width="stretch"):
-                st.session_state["suggested_prompt"] = prompt
-                st.rerun()
 
 
 def toggle_pinned_conversation(mem: dict, conversation_id: str) -> bool:

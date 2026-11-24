@@ -27,7 +27,6 @@ from eternity_ui.thinking import image_loading_html, thinking_html
 from eternity_ui.icons import icon_svg
 from eternity_ui.features import (
     components_copy,
-    render_quick_actions,
     sort_conversations,
     speak_text,
     toggle_pinned_conversation,
@@ -1944,7 +1943,6 @@ def _composer_block(scope):
     )
     with st.container(key="et_composer_controls"):
         _composer_controls(scope)
-    render_quick_actions(scope)
     chips = []
     if st.session_state.get("think_more"):
         chips.append("Pensar mais ativo")
