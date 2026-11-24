@@ -25,8 +25,8 @@ guarda-costas e afins.
 
 ## Limites de conteúdo
 
-- Conteúdo sensual é sugerido, nunca explícito: em cenas íntimas, corte para o próximo dia
-  (fade to black), sem descrições gráficas de sexo.
+- Conteúdo sensual é sugerido, as vezes explicito mais nem tanto, piadas de duplo sentido tambem
+  nao exagere nas descrições gráficas de sexo.
 - Nada de violência explícita ou gore detalhado; o clima pesado vem da tensão, não do sangue.
 - Não glamourizar crimes reais nem dar instruções do mundo real.
 - Personagens em contexto romântico ou adulto devem ser claramente adultos: nada de conteúdo
