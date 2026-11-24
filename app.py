@@ -23,6 +23,14 @@ from eternity_ui.brand import auth_hero_html, brand_mark_html, crown_svg, welcom
 from eternity_ui.components import empty_state_html, page_head_html, user_message_html
 from eternity_ui.theme import apply_theme
 from eternity_ui.thinking import image_loading_html, thinking_html
+from eternity_ui.icons import icon_svg
+from eternity_ui.features import (
+    components_copy,
+    render_quick_actions,
+    sort_conversations,
+    speak_text,
+    toggle_pinned_conversation,
+)
 
 st.set_page_config(
     page_title="Eternity",
@@ -1110,8 +1118,8 @@ def resolve_effort(text, forced_deep=False):
 
 
 # ───────────────────────── Renderização ─────────────────────────
-def render(m):
-    """Desenha uma mensagem já persistida no histórico."""
+def render(m, index=0):
+    """Desenha uma mensagem já persistida no histórico, com ações da Eternity."""
     if m["role"] == "user":
         st.markdown(
             user_message_html(
@@ -1128,6 +1136,29 @@ def render(m):
             st.caption(m["note"])
         if m.get("content"):
             st.markdown(m["content"])
+            action_cols = st.columns([0.18, 0.18, 0.18, 0.46], gap="small", vertical_alignment="center")
+            with action_cols[0]:
+                if st.button("Copiar", icon=":material/content_copy:", key=f"et_copy_{index}",
+                             help="Copiar esta resposta"):
+                    components_copy(m.get("content", ""), f"et_copy_target_{index}")
+                    st.toast("Resposta copiada.", icon="✓")
+            with action_cols[1]:
+                if st.button("Ouvir", icon=":material/volume_up:", key=f"et_speak_{index}",
+                             help="Ler esta resposta em voz alta no navegador"):
+                    speak_text(m.get("content", ""), f"et_speech_{index}")
+            with action_cols[2]:
+                if st.button("Salvar", icon=":material/bookmark_add:", key=f"et_save_{index}",
+                             help="Guardar esta resposta nas suas memórias"):
+                    note = str(m.get("content", "")).strip()
+                    if note:
+                        mem.setdefault("saved_notes", [])
+                        mem["saved_notes"].append({
+                            "text": note[:4000],
+                            "created_at": datetime.now(timezone.utc).isoformat(),
+                        })
+                        mem["saved_notes"] = mem["saved_notes"][-100:]
+                        save_memory(mem)
+                        st.toast("Resposta salva nas memórias.", icon="✓")
         sources = m.get("sources") or []
         if sources:
             links = " · ".join(
@@ -1166,6 +1197,7 @@ def archive_current_conversation():
         "title": title[:80],
         "created_at": datetime.now(timezone.utc).isoformat(),
         "messages": copy.deepcopy(mem["messages"]),
+        "pinned": False,
     }
     mem.setdefault("archived_conversations", []).append(snapshot)
     mem["archived_conversations"] = mem["archived_conversations"][-30:]
@@ -1376,7 +1408,7 @@ def render_sidebar():
             needle = (query or "").strip().casefold()
             if needle:
                 archives = [c for c in archives if needle in str(c.get("title", "")).casefold()]
-            recent = sorted(archives, key=lambda c: str(c.get("created_at", "")), reverse=True)[:16]
+            recent = sort_conversations(archives)[:16]
             if not recent:
                 st.markdown(
                     '<div class="et-side-note">Nenhuma conversa aqui ainda. '
@@ -1405,6 +1437,11 @@ def render_sidebar():
                         )
                         if st.button("Salvar nome", key=f"et_conv_save_{conv_id}", width="stretch"):
                             if rename_archived_conversation(conv_id, rename.strip()):
+                                st.rerun()
+                        pin_label = "Desafixar conversa" if conv.get("pinned") else "Fixar conversa"
+                        if st.button(pin_label, key=f"et_conv_pin_{conv_id}", width="stretch"):
+                            if toggle_pinned_conversation(mem, conv_id):
+                                save_memory(mem)
                                 st.rerun()
                         if st.button("Excluir conversa", key=f"et_conv_del_{conv_id}", width="stretch"):
                             if delete_archived_conversation(conv_id):
@@ -1906,6 +1943,7 @@ def _composer_block(scope):
     )
     with st.container(key="et_composer_controls"):
         _composer_controls(scope)
+    render_quick_actions(scope)
     chips = []
     if st.session_state.get("think_more"):
         chips.append("Pensar mais ativo")
@@ -1949,7 +1987,28 @@ def _render_suggestions():
 
 def _render_chat_header():
     title = str(mem.get("conversation_title", "Conversa"))
-    st.markdown(f'<div class="et-chat-title">{html.escape(title)}</div>', unsafe_allow_html=True)
+    header_cols = st.columns([0.78, 0.22], gap="small", vertical_alignment="center")
+    with header_cols[0]:
+        st.markdown(
+            '<div class="et-chat-title">'
+            f'{icon_svg("crown", 16, cls="et-title-glyph")}'
+            f'{html.escape(title)}</div>',
+            unsafe_allow_html=True,
+        )
+    with header_cols[1]:
+        focus = st.toggle(
+            "Modo foco", key=f"et_focus_mode_{CURRENT_USER_KEY}",
+            help="Esconde o menu lateral para você conversar sem distrações.",
+        )
+        if focus:
+            st.markdown(
+                '<style>'
+                '[data-testid="stSidebar"]{display:none!important;}'
+                '[data-testid="stMain"]{padding-left:0!important;}'
+                '[data-testid="stMainBlockContainer"]{max-width:1100px!important;margin:0 auto!important;}'
+                '</style>',
+                unsafe_allow_html=True,
+            )
 
 
 def _render_messages():
@@ -1961,7 +2020,7 @@ def _render_messages():
         if search_term and search_term not in searchable:
             continue
         with st.container(key=f"et_msg_{index}"):
-            render(message)
+            render(message, index)
 
 
 def render_chat_page():
