@@ -9,3 +9,4 @@ eternity_memory*.json
 # Servidor local
 .streamlit.pid
 streamlit.log
+.eternity-dev/

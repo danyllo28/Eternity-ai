@@ -62,9 +62,10 @@ VISION_ORDER = ["qwen/qwen3.8-27b", "meta-llama/llama-4-scout-17b-16e-instruct",
                 "meta-llama/llama-4-maverick-17b-128e-instruct"]
 
 MAX_IMAGES = 3
-MAX_HISTORY = 40
-ARCHIVE_LIMIT = 60
-MESSAGES_PER_ARCHIVE = 120
+MAX_HISTORY = 80          # mensagens levadas ao modelo por resposta
+MAX_HISTORY_CHARS = 60000  # teto de caracteres para não estourar o contexto
+ARCHIVE_LIMIT = 80
+MESSAGES_PER_ARCHIVE = 240
 REFLECT_EVERY = 3
 MEM_FILE = "eternity_memory.json"
 LANGUAGES = {
@@ -337,6 +338,7 @@ def default_memory():
         "title_generated": False,
         "personalization": dict(PREFERENCE_DEFAULTS),
         "archived_conversations": [],
+        "saved_notes": [],
     }
 
 
@@ -565,6 +567,10 @@ def load_memory():
             "title_generated", mem["conversation_title"] not in ("", "Nova conversa")
         ))
         mem["archived_conversations"] = [c for c in data.get("archived_conversations", []) if isinstance(c, dict) and isinstance(c.get("messages"), list)][-ARCHIVE_LIMIT:]
+        mem["saved_notes"] = [
+            n for n in data.get("saved_notes", [])
+            if isinstance(n, dict) and isinstance(n.get("text"), str) and n.get("text")
+        ][-100:]
     kind = "local"
     if use_gist():
         kind = "gist-erro" if st.session_state.get("gist_storage_error", False) else "gist"
@@ -610,8 +616,13 @@ def serializable(mem):
         "conversation_title": str(mem.get("conversation_title", "Nova conversa"))[:80],
         "title_generated": bool(mem.get("title_generated", False)),
         "archived_conversations": archives,
+        "saved_notes": [
+            {"text": str(n.get("text", ""))[:4000], "created_at": str(n.get("created_at", ""))[:40]}
+            for n in mem.get("saved_notes", [])
+            if isinstance(n, dict) and n.get("text")
+        ][-100:],
     }
-    while len(json.dumps(out, ensure_ascii=False)) > 600_000:
+    while len(json.dumps(out, ensure_ascii=False)) > 900_000:
         if out["archived_conversations"]:
             out["archived_conversations"].pop(0)
         elif out["messages"]:
@@ -851,6 +862,15 @@ def build_system(mode, effort=None):
 def build_api_messages(system, history, current_images):
     msgs = [{"role": "system", "content": system}]
     recent = history[-MAX_HISTORY:]
+    # Mantém as mensagens mais novas sem passar do teto de caracteres do contexto.
+    kept, budget = [], MAX_HISTORY_CHARS
+    for item in reversed(recent):
+        cost = len(str(item.get("api_content") or item.get("content") or "")) + 24
+        if kept and cost > budget:
+            break
+        kept.append(item)
+        budget -= cost
+    recent = list(reversed(kept))
     last = len(recent) - 1
     for i, m in enumerate(recent):
         # api_content is session-only for uploaded documents; it is deliberately omitted from persistence.
@@ -1796,6 +1816,20 @@ def render_memories_page():
                 save_memory(mem)
                 st.rerun()
 
+    st.markdown('<div class="et-section-label">Respostas salvas</div>', unsafe_allow_html=True)
+    if not mem.get("saved_notes"):
+        st.caption("Nenhuma resposta salva ainda. Use o ícone de marcador nas respostas.")
+    for index, note in enumerate(list(mem.get("saved_notes", []))):
+        cols = st.columns([0.86, 0.14], vertical_alignment="center")
+        with cols[0]:
+            preview = html.escape(str(note.get("text", ""))[:400])
+            st.markdown(f'<div class="et-list-row"><div class="et-list-text">{preview}</div></div>', unsafe_allow_html=True)
+        with cols[1]:
+            if st.button("Excluir", key=f"delete_note_{CURRENT_USER_KEY}_{index}", help="Excluir esta resposta salva", width="stretch"):
+                mem["saved_notes"].pop(index)
+                save_memory(mem)
+                st.rerun()
+
     st.markdown('<div class="et-section-label">Backup e restauração</div>', unsafe_allow_html=True)
     backup = json.dumps(
         {"version": 3, "username": CURRENT_USER.get("username"), "memory": serializable(mem)},
@@ -1853,7 +1887,12 @@ def render_memories_page():
             restored["archived_conversations"] = [
                 c for c in source.get("archived_conversations", [])
                 if isinstance(c, dict) and isinstance(c.get("messages"), list)
-            ][-30:]
+            ][-ARCHIVE_LIMIT:]
+            restored["saved_notes"] = [
+                {"text": str(n.get("text", ""))[:4000], "created_at": str(n.get("created_at", ""))[:40]}
+                for n in source.get("saved_notes", [])
+                if isinstance(n, dict) and n.get("text")
+            ][-100:]
             mem.clear()
             mem.update(restored)
             if not save_memory(mem):

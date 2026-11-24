@@ -440,7 +440,7 @@ button:focus-visible, textarea:focus-visible, input:focus-visible, [role="tab"]:
 .et-welcome-hello {
   display: block; width: 100%; text-align: center;
   font-family: var(--et-font); font-style: normal; font-weight: 600; font-size: .72rem;
-  letter-spacing: .16em; padding-left: .16em; /* compensa o espaço extra da última letra */
+  letter-spacing: .16em; padding-right: .16em; /* compensa o espaço extra da última letra */
   text-transform: uppercase; color: var(--et-muted); line-height: 1.4;
 }
 .et-welcome-name {
@@ -893,9 +893,11 @@ button:focus-visible, textarea:focus-visible, input:focus-visible, [role="tab"]:
   [class*="st-key-et_actions_"] .stButton > button > div {
     width: auto !important; gap: 0 !important; justify-content: center !important; align-items: center !important;
   }
+  /* O ícone do Streamlit vive dentro do <p>: zera só o texto, nunca o parágrafo. */
   [class*="st-key-et_actions_"] .stButton > button p,
   [class*="st-key-et_actions_"] [data-testid="stPopoverButton"] p {
-    display: none !important;
+    font-size: 0 !important; line-height: 0 !important; letter-spacing: 0 !important;
+    margin: 0 !important; white-space: nowrap !important; overflow: hidden !important;
   }
   [class*="st-key-et_actions_"] [data-testid="stIconMaterial"],
   [class*="st-key-et_actions_"] .stButton > button svg {
