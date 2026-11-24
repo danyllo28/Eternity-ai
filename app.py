@@ -373,6 +373,20 @@ def gist_write(filename, content):
             {"files": {filename: {"content": content}}})
 
 
+def gist_html_url():
+    """Link do Gist onde a memória desta conta fica salva, para editar por lá."""
+    if "gist_html_url" in st.session_state:
+        return st.session_state["gist_html_url"]
+    url = None
+    if use_gist():
+        try:
+            url = gh_call("GET", f"https://api.github.com/gists/{secret('GIST_ID')}").get("html_url")
+        except Exception:
+            url = None
+    st.session_state["gist_html_url"] = url
+    return url
+
+
 def read_json_file(filename, local_path, default):
     try:
         if use_gist():
@@ -1731,6 +1745,17 @@ def render_memories_page():
         st.error("Não consegui ler o Gist. Verifique GITHUB_TOKEN e GIST_ID nas Secrets.")
     else:
         st.warning("Memória local temporária. Configure o Gist para manter os dados entre reinicializações.")
+
+    if use_gist():
+        gist_url = gist_html_url()
+        if gist_url:
+            st.markdown(
+                f'<div class="et-list-row"><a href="{html.escape(gist_url, quote=True)}" target="_blank" '
+                'rel="noopener noreferrer">Abrir a memória dela no GitHub</a>'
+                f'<div class="et-card-text">Arquivo <code>{html.escape(memory_filename(CURRENT_USER_KEY))}</code>: '
+                "edite ou apague o que quiser por lá e recarregue a página." '</div></div>',
+                unsafe_allow_html=True,
+            )
 
     learning_key = f"auto_learning_{CURRENT_USER_KEY}"
     if learning_key not in st.session_state:

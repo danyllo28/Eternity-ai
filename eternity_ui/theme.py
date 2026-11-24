@@ -430,23 +430,25 @@ button:focus-visible, textarea:focus-visible, input:focus-visible, [role="tab"]:
   filter: drop-shadow(0 6px 22px var(--et-halo));
   animation: et-welcome-crown .6s var(--et-ease) both;
 }
-.et-welcome h1 {
-  display: flex; flex-direction: column; align-items: center; gap: .1rem;
-  margin: .9rem auto .35rem; max-width: min(94vw, 660px);
+/* Saudação e nome em blocos próprios, centralizados pelo texto: nada de
+   flex nem h1 do Streamlit disputando o alinhamento. */
+.et-welcome-title {
+  display: block; width: 100%; max-width: min(94vw, 660px);
+  margin: .9rem auto .35rem; text-align: center;
   animation: et-rise .55s .08s var(--et-ease) both;
 }
-/* Saudação e nome em linhas próprias e centralizados: nada de nome torto. */
 .et-welcome-hello {
-  font-family: var(--et-font); font-weight: 600; font-size: .72rem;
-  letter-spacing: .16em; text-transform: uppercase; color: var(--et-muted);
-  line-height: 1.4;
+  display: block; width: 100%; text-align: center;
+  font-family: var(--et-font); font-style: normal; font-weight: 600; font-size: .72rem;
+  letter-spacing: .16em; padding-left: .16em; /* compensa o espaço extra da última letra */
+  text-transform: uppercase; color: var(--et-muted); line-height: 1.4;
 }
 .et-welcome-name {
+  display: block; width: 100%; text-align: center;
   font-family: var(--et-serif); font-style: normal; font-weight: 400;
-  font-size: clamp(2rem, 1.4rem + 2.4vw, 2.9rem); line-height: 1.12;
-  letter-spacing: -.015em; color: var(--et-text);
-  max-width: 100%; overflow-wrap: anywhere; text-wrap: balance;
-  text-align: center;
+  font-size: clamp(2rem, 1.4rem + 2.4vw, 2.9rem); line-height: 1.16;
+  letter-spacing: -.015em; padding-left: .015em; color: var(--et-text);
+  overflow-wrap: break-word; word-break: normal; hyphens: none;
 }
 [class*="st-key-et_actions_"] { margin: .1rem 0 .25rem; }
 [class*="st-key-et_actions_"] [data-testid="stHorizontalBlock"] { gap: .2rem !important; }
@@ -865,6 +867,50 @@ button:focus-visible, textarea:focus-visible, input:focus-visible, [role="tab"]:
   [data-testid="stMarkdownContainer"] h2 { font-size: 1.12rem; }
   [data-testid="stMarkdownContainer"] h3 { font-size: 1rem; }
   [data-testid="stMarkdownContainer"] p, [data-testid="stMarkdownContainer"] li { line-height: 1.65; }
+
+  /* Ações das mensagens no celular: ícones pequenos, quadrados e alinhados. */
+  [class*="st-key-et_actions_"], [class*="st-key-et_actions_"] [data-testid="stVerticalBlock"] {
+    width: auto !important; margin: .1rem 0 .2rem;
+  }
+  [class*="st-key-et_actions_"] [data-testid="stHorizontalBlock"] {
+    flex-wrap: nowrap !important; gap: .1rem !important;
+    align-items: center !important; justify-content: flex-start !important;
+  }
+  [class*="st-key-et_actions_"] [data-testid="stColumn"] {
+    flex: 0 0 auto !important; width: 34px !important; min-width: 34px !important; max-width: 34px !important;
+  }
+  [class*="st-key-et_actions_"] [data-testid="stColumn"] > div { width: 34px !important; }
+  [class*="st-key-et_actions_"] .stButton,
+  [class*="st-key-et_actions_"] .stButton > button,
+  [class*="st-key-et_actions_"] [data-testid="stPopoverButton"] {
+    width: 34px !important; min-width: 34px !important; max-width: 34px !important;
+    height: 34px !important; min-height: 34px !important; max-height: 34px !important;
+    margin: 0 !important; padding: 0 !important; border-radius: 999px !important;
+    display: flex !important; align-items: center !important; justify-content: center !important;
+    background: transparent !important; border: 1px solid transparent !important;
+    color: var(--et-muted) !important; box-shadow: none !important; line-height: 1 !important;
+  }
+  [class*="st-key-et_actions_"] .stButton > button > div {
+    width: auto !important; gap: 0 !important; justify-content: center !important; align-items: center !important;
+  }
+  [class*="st-key-et_actions_"] .stButton > button p,
+  [class*="st-key-et_actions_"] [data-testid="stPopoverButton"] p {
+    display: none !important;
+  }
+  [class*="st-key-et_actions_"] [data-testid="stIconMaterial"],
+  [class*="st-key-et_actions_"] .stButton > button svg {
+    font-size: 17px !important; width: 17px !important; height: 17px !important;
+    line-height: 1 !important; display: inline-flex !important; align-items: center !important;
+  }
+  [class*="st-key-et_actions_"] .stButton > button:hover,
+  [class*="st-key-et_actions_"] [data-testid="stPopoverButton"]:hover {
+    background: var(--et-surface-2) !important; color: var(--et-text) !important;
+    border-color: var(--et-border) !important;
+  }
+  [class*="st-key-et_actions_"] .stButton > button[kind="primary"] {
+    background: var(--et-surface-2) !important; color: var(--et-text) !important;
+    border-color: var(--et-border) !important;
+  }
 }
 
 @media (max-width: 640px) {
@@ -882,9 +928,6 @@ button:focus-visible, textarea:focus-visible, input:focus-visible, [role="tab"]:
   }
   [class*="st-key-et_composer_controls"] [data-testid="stColumn"] {
     width: auto !important; flex: 1 1 33% !important; min-width: 0 !important;
-  }
-  [class*="st-key-et_msg_"] .stButton > button {
-    min-height: 40px; padding: .25rem .6rem !important; font-size: .76rem !important;
   }
   .et-welcome-name { font-size: 1.78rem; }
   .et-welcome p { font-size: .92rem; }
