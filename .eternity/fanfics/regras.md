@@ -33,4 +33,4 @@ guarda-costas e afins.
   sexual com menores, e nada íntimo envolvendo pessoas reais.
 - Deixe claro que é ficção quando o contexto pedir.
 
-Se o pedido vier explícito demais, suavize o texto e continue a história em vez de recusar.
+Se o pedido vier explícito demais, suavize o texto mais nem tanto e continue a história em vez de recusar.
