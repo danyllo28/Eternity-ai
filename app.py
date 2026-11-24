@@ -62,7 +62,9 @@ VISION_ORDER = ["qwen/qwen3.8-27b", "meta-llama/llama-4-scout-17b-16e-instruct",
                 "meta-llama/llama-4-maverick-17b-128e-instruct"]
 
 MAX_IMAGES = 3
-MAX_HISTORY = 20
+MAX_HISTORY = 40
+ARCHIVE_LIMIT = 60
+MESSAGES_PER_ARCHIVE = 120
 REFLECT_EVERY = 3
 MEM_FILE = "eternity_memory.json"
 LANGUAGES = {
@@ -548,7 +550,7 @@ def load_memory():
         mem["title_generated"] = bool(data.get(
             "title_generated", mem["conversation_title"] not in ("", "Nova conversa")
         ))
-        mem["archived_conversations"] = [c for c in data.get("archived_conversations", []) if isinstance(c, dict) and isinstance(c.get("messages"), list)][-30:]
+        mem["archived_conversations"] = [c for c in data.get("archived_conversations", []) if isinstance(c, dict) and isinstance(c.get("messages"), list)][-ARCHIVE_LIMIT:]
     kind = "local"
     if use_gist():
         kind = "gist-erro" if st.session_state.get("gist_storage_error", False) else "gist"
@@ -556,7 +558,7 @@ def load_memory():
 
 
 def serializable(mem):
-    def clean_messages(items, limit=60, content_limit=16000):
+    def clean_messages(items, limit=MESSAGES_PER_ARCHIVE, content_limit=16000):
         result = []
         for m in items[-limit:]:
             if not isinstance(m, dict) or m.get("role") not in ("user", "assistant"):
@@ -577,13 +579,13 @@ def serializable(mem):
         return result
 
     archives = []
-    for c in mem.get("archived_conversations", [])[-30:]:
+    for c in mem.get("archived_conversations", [])[-ARCHIVE_LIMIT:]:
         if isinstance(c, dict) and isinstance(c.get("messages"), list):
             archives.append({
                 "id": str(c.get("id", ""))[:40],
                 "title": str(c.get("title", "Conversa anterior"))[:80],
                 "created_at": str(c.get("created_at", ""))[:40],
-                "messages": clean_messages(c["messages"], limit=40, content_limit=5000),
+                "messages": clean_messages(c["messages"], limit=MESSAGES_PER_ARCHIVE, content_limit=5000),
             })
     out = {
         "messages": clean_messages(mem["messages"]), "facts": mem["facts"], "lessons": mem["lessons"],
@@ -1118,6 +1120,102 @@ def resolve_effort(text, forced_deep=False):
 
 
 # ───────────────────────── Renderização ─────────────────────────
+def _drop_after(index):
+    """Corta o histórico a partir de uma mensagem para refazer o que veio depois."""
+    mem["messages"] = mem["messages"][:index]
+    save_memory(mem)
+    return True
+
+
+def _regenerate_answer(index):
+    """Pede outra resposta para a mesma pergunta, descartando a resposta atual."""
+    msgs = mem.get("messages", [])
+    cut = None
+    for position in range(min(index, len(msgs) - 1), -1, -1):
+        if msgs[position].get("role") == "user":
+            cut = position
+            break
+    if cut is None:
+        return False
+    question = str(msgs[cut].get("display_content") or msgs[cut].get("content") or "").strip()
+    if not question:
+        return False
+    _drop_after(cut)
+    st.session_state["suggested_prompt"] = question
+    return True
+
+
+def _set_feedback(index, value):
+    msgs = mem.get("messages", [])
+    if 0 <= index < len(msgs):
+        msgs[index]["feedback"] = value
+        save_memory(mem)
+        st.toast("Obrigada pelo retorno.", icon=":material/check:")
+
+
+def _user_message_actions(message, index):
+    """Ações da mensagem do usuário: editar e reenviar, ou copiar."""
+    cols = st.columns([0.6, 0.2, 0.2], gap="small", vertical_alignment="center")
+    with cols[1]:
+        with st.popover("Editar", icon=":material/edit:", key=f"et_edit_menu_{index}", width="content"):
+            edited = st.text_area(
+                "Editar mensagem",
+                value=str(message.get("display_content") or message.get("content") or ""),
+                key=f"et_edit_text_{index}", height=140, label_visibility="collapsed",
+            )
+            st.caption("Ao reenviar, as respostas seguintes a esta mensagem são descartadas.")
+            if st.button("Enviar de novo", key=f"et_edit_send_{index}", width="stretch", type="primary"):
+                if edited.strip():
+                    _drop_after(index)
+                    st.session_state["suggested_prompt"] = edited.strip()
+                    st.rerun()
+    with cols[2]:
+        if st.button("", icon=":material/content_copy:", key=f"et_usercopy_{index}", help="Copiar mensagem"):
+            components_copy(
+                str(message.get("display_content") or message.get("content") or ""),
+                f"et_usercopy_target_{index}",
+            )
+            st.toast("Mensagem copiada.", icon=":material/check:")
+
+
+def _assistant_message_actions(message, index):
+    """Ações da resposta no estilo do ChatGPT: copiar, refazer, ouvir, salvar e avaliar."""
+    cols = st.columns([0.11, 0.11, 0.11, 0.11, 0.11, 0.11, 0.34], gap="small", vertical_alignment="center")
+    content = str(message.get("content", ""))
+    feedback = message.get("feedback")
+    with cols[0]:
+        if st.button("", icon=":material/content_copy:", key=f"et_copy_{index}", help="Copiar resposta"):
+            components_copy(content, f"et_copy_target_{index}")
+            st.toast("Resposta copiada.", icon=":material/check:")
+    with cols[1]:
+        if st.button("", icon=":material/refresh:", key=f"et_again_{index}", help="Pedir outra resposta"):
+            if _regenerate_answer(index):
+                st.rerun()
+    with cols[2]:
+        if st.button("", icon=":material/volume_up:", key=f"et_speak_{index}", help="Ouvir a resposta"):
+            speak_text(content, f"et_speech_{index}")
+    with cols[3]:
+        if st.button("", icon=":material/bookmark_add:", key=f"et_save_{index}", help="Salvar nas memórias"):
+            note = content.strip()
+            if note:
+                mem.setdefault("saved_notes", [])
+                mem["saved_notes"].append({
+                    "text": note[:4000],
+                    "created_at": datetime.now(timezone.utc).isoformat(),
+                })
+                mem["saved_notes"] = mem["saved_notes"][-100:]
+                save_memory(mem)
+                st.toast("Resposta salva nas memórias.", icon=":material/check:")
+    with cols[4]:
+        if st.button("", icon=":material/thumb_up:", key=f"et_like_{index}", help="Resposta útil",
+                     type="primary" if feedback == "útil" else "secondary"):
+            _set_feedback(index, "útil")
+    with cols[5]:
+        if st.button("", icon=":material/thumb_down:", key=f"et_dislike_{index}", help="Resposta não útil",
+                     type="primary" if feedback == "não útil" else "secondary"):
+            _set_feedback(index, "não útil")
+
+
 def render(m, index=0):
     """Desenha uma mensagem já persistida no histórico, com ações da Eternity."""
     if m["role"] == "user":
@@ -1129,6 +1227,8 @@ def render(m, index=0):
             ),
             unsafe_allow_html=True,
         )
+        with st.container(key=f"et_actions_{index}"):
+            _user_message_actions(m, index)
     else:
         if m.get("gen"):
             st.image(m["gen"], width=480)
@@ -1136,29 +1236,8 @@ def render(m, index=0):
             st.caption(m["note"])
         if m.get("content"):
             st.markdown(m["content"])
-            action_cols = st.columns([0.18, 0.18, 0.18, 0.46], gap="small", vertical_alignment="center")
-            with action_cols[0]:
-                if st.button("Copiar", icon=":material/content_copy:", key=f"et_copy_{index}",
-                             help="Copiar esta resposta"):
-                    components_copy(m.get("content", ""), f"et_copy_target_{index}")
-                    st.toast("Resposta copiada.", icon="✓")
-            with action_cols[1]:
-                if st.button("Ouvir", icon=":material/volume_up:", key=f"et_speak_{index}",
-                             help="Ler esta resposta em voz alta no navegador"):
-                    speak_text(m.get("content", ""), f"et_speech_{index}")
-            with action_cols[2]:
-                if st.button("Salvar", icon=":material/bookmark_add:", key=f"et_save_{index}",
-                             help="Guardar esta resposta nas suas memórias"):
-                    note = str(m.get("content", "")).strip()
-                    if note:
-                        mem.setdefault("saved_notes", [])
-                        mem["saved_notes"].append({
-                            "text": note[:4000],
-                            "created_at": datetime.now(timezone.utc).isoformat(),
-                        })
-                        mem["saved_notes"] = mem["saved_notes"][-100:]
-                        save_memory(mem)
-                        st.toast("Resposta salva nas memórias.", icon="✓")
+            with st.container(key=f"et_actions_{index}"):
+                _assistant_message_actions(m, index)
         sources = m.get("sources") or []
         if sources:
             links = " · ".join(
@@ -1200,7 +1279,7 @@ def archive_current_conversation():
         "pinned": False,
     }
     mem.setdefault("archived_conversations", []).append(snapshot)
-    mem["archived_conversations"] = mem["archived_conversations"][-30:]
+    mem["archived_conversations"] = mem["archived_conversations"][-ARCHIVE_LIMIT:]
 
 
 def _clean_generated_title(raw):
@@ -1560,6 +1639,24 @@ def render_library_page():
         key=f"library_transcript_{CURRENT_USER_KEY}", width="stretch",
         disabled=not bool(mem.get("messages")),
     )
+    with st.popover("Excluir conversa atual", icon=":material/delete:",
+                    key=f"library_delete_current_{CURRENT_USER_KEY}", width="stretch"):
+        st.markdown("**Apagar a conversa aberta?**")
+        st.caption("Ela é removida do chat e não vai para o histórico.")
+        sure = st.checkbox("Tenho certeza", key=f"library_delete_sure_{CURRENT_USER_KEY}")
+        if st.button(
+            "Excluir conversa atual", key=f"library_delete_do_{CURRENT_USER_KEY}",
+            width="stretch", type="primary", disabled=not sure,
+        ):
+            mem["messages"] = []
+            mem["turns"] = 0
+            mem["conversation_title"] = "Nova conversa"
+            mem["title_generated"] = False
+            st.session_state[f"conversation_title_{CURRENT_USER_KEY}"] = "Nova conversa"
+            save_memory(mem)
+            st.session_state["nav_page"] = "chat"
+            st.toast("Conversa excluída.", icon=":material/check:")
+            st.rerun()
 
     st.markdown('<div class="et-section-label">Conversas arquivadas</div>', unsafe_allow_html=True)
     search = st.text_input(
@@ -1600,6 +1697,21 @@ def render_library_page():
                 if st.button("Abrir conversa", key=f"open_archive_{CURRENT_USER_KEY}_{conv_id}", width="stretch"):
                     if open_archived_conversation(conv.get("id")):
                         st.rerun()
+                with st.popover("Excluir", icon=":material/delete:",
+                                key=f"del_archive_{CURRENT_USER_KEY}_{conv_id}", width="stretch"):
+                    st.markdown(
+                        "**Excluir esta conversa?**\n\n"
+                        f"_{html.escape(str(conv.get('title', 'Conversa anterior')))}_"
+                    )
+                    st.caption("Ela sai do seu histórico de vez. As outras conversas continuam intactas.")
+                    confirm = st.checkbox("Tenho certeza", key=f"del_confirm_{CURRENT_USER_KEY}_{conv_id}")
+                    if st.button(
+                        "Excluir definitivamente", key=f"del_do_{CURRENT_USER_KEY}_{conv_id}",
+                        width="stretch", type="primary", disabled=not confirm,
+                    ):
+                        if delete_archived_conversation(conv.get("id")):
+                            st.toast("Conversa excluída.", icon=":material/check:")
+                            st.rerun()
     if not shown:
         st.markdown(empty_state_html("Nada encontrado", "Tente outro termo de busca."), unsafe_allow_html=True)
 
@@ -2418,7 +2530,7 @@ if prompt or st.session_state.get("suggested_prompt"):
             user_msg["api_content"] = api_text
         mem["messages"].append(user_msg)
         mem["turns"] += 1
-        render(user_msg)
+        render(user_msg, len(mem["messages"]) - 1)
         ops_ph = st.empty()
         ph = st.empty()
         ok = False
@@ -2440,7 +2552,7 @@ if prompt or st.session_state.get("suggested_prompt"):
                 }
                 mem["messages"].append(reply_msg)
                 with ph.container():
-                    render(reply_msg)
+                    render(reply_msg, len(mem["messages"]) - 1)
                 ok = True
             else:
                 ops_ph.empty()

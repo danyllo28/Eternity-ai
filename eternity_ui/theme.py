@@ -431,10 +431,27 @@ button:focus-visible, textarea:focus-visible, input:focus-visible, [role="tab"]:
   animation: et-welcome-crown .6s var(--et-ease) both;
 }
 .et-welcome h1 {
-  font-family: var(--et-serif); font-weight: 400; font-style: normal;
-  font-size: clamp(2.05rem, 1.5rem + 2vw, 2.9rem); line-height: 1.08;
-  letter-spacing: -.015em; color: var(--et-text); margin: .85rem 0 .3rem;
+  display: flex; flex-direction: column; align-items: center; gap: .1rem;
+  margin: .9rem auto .35rem; max-width: min(94vw, 660px);
   animation: et-rise .55s .08s var(--et-ease) both;
+}
+/* Saudação e nome em linhas próprias e centralizados: nada de nome torto. */
+.et-welcome-hello {
+  font-family: var(--et-font); font-weight: 600; font-size: .72rem;
+  letter-spacing: .16em; text-transform: uppercase; color: var(--et-muted);
+  line-height: 1.4;
+}
+.et-welcome-name {
+  font-family: var(--et-serif); font-style: normal; font-weight: 400;
+  font-size: clamp(2rem, 1.4rem + 2.4vw, 2.9rem); line-height: 1.12;
+  letter-spacing: -.015em; color: var(--et-text);
+  max-width: 100%; overflow-wrap: anywhere; text-wrap: balance;
+  text-align: center;
+}
+[class*="st-key-et_actions_"] { margin: .1rem 0 .25rem; }
+[class*="st-key-et_actions_"] [data-testid="stHorizontalBlock"] { gap: .2rem !important; }
+[class*="st-key-et_actions_"] .stButton > button {
+  justify-content: center !important; padding: .1rem .3rem !important;
 }
 .et-welcome p {
   color: var(--et-muted); font-size: .98rem; margin: 0;
@@ -842,7 +859,7 @@ button:focus-visible, textarea:focus-visible, input:focus-visible, [role="tab"]:
     margin-right: .85rem !important; font-size: .8rem !important; padding: .4rem 0 !important;
   }
   .et-welcome { padding-top: 2.2rem; }
-  .et-welcome h1 { font-size: 1.95rem; }
+  .et-welcome-name { font-size: 2rem; }
   [class*="st-key-et_recents"] { max-height: 38vh; }
   [data-testid="stMarkdownContainer"] h1 { font-size: 1.28rem; }
   [data-testid="stMarkdownContainer"] h2 { font-size: 1.12rem; }
@@ -869,7 +886,7 @@ button:focus-visible, textarea:focus-visible, input:focus-visible, [role="tab"]:
   [class*="st-key-et_msg_"] .stButton > button {
     min-height: 40px; padding: .25rem .6rem !important; font-size: .76rem !important;
   }
-  .et-welcome h1 { font-size: 1.72rem; }
+  .et-welcome-name { font-size: 1.78rem; }
   .et-welcome p { font-size: .92rem; }
   .et-welcome-mark { width: 64px; height: 64px; }
   .et-welcome-glyph { width: 34px; height: 31px; }
@@ -892,7 +909,7 @@ button:focus-visible, textarea:focus-visible, input:focus-visible, [role="tab"]:
   [data-testid="stMainBlockContainer"], .block-container {
     padding-left: .55rem !important; padding-right: .55rem !important;
   }
-  .et-welcome h1 { font-size: 1.58rem; }
+  .et-welcome-name { font-size: 1.6rem; }
   .et-welcome p { font-size: .88rem; }
   .et-think-stage { transform: scale(.8); }
 }

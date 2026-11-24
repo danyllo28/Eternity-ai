@@ -41,7 +41,10 @@ def welcome_html(username: str, greeting: str) -> str:
         '<span class="et-welcome-halo" aria-hidden="true"></span>'
         f"{crown_svg(40, cls='et-welcome-glyph')}"
         "</div>"
-        f"<h1>{html.escape(greeting)}, {name}.</h1>"
+        '<h1 class="et-welcome-title">'
+        f'<span class="et-welcome-hello">{html.escape(greeting)}</span>'
+        f'<span class="et-welcome-name">{name}</span>'
+        "</h1>"
         "<p>O que vamos criar hoje?</p>"
         "</div>"
     )
