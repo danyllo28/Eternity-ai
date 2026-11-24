@@ -36,6 +36,20 @@ from eternity_ui.icons import icon_svg
 st.markdown(icon_svg("sparkle", 18), unsafe_allow_html=True)
 ```
 
+## Fanfics e histórias
+
+As regras que definem como a Eternity escreve fanfics ficam no arquivo oculto
+`.eternity/fanfics/regras.md`. A versão oficial é a do GitHub: o app baixa esse arquivo
+da branch `main` a cada minuto, então dá para editar direto no site, sem terminal e sem
+reiniciar nada.
+
+- Editar no GitHub: <https://github.com/danyllo28/Eternity-ai/edit/main/.eternity/fanfics/regras.md>
+- Ver o arquivo: <https://github.com/danyllo28/Eternity-ai/blob/main/.eternity/fanfics/regras.md>
+
+A cópia local serve só de reserva para quando o app estiver sem internet — editar a cópia
+local não muda nada com conexão ativa. O bloco `<!-- ... -->` no topo do arquivo é um
+lembrete para quem edita e não é enviado ao modelo.
+
 ## Enviar para o GitHub
 
 1. Crie um repositório no GitHub.
